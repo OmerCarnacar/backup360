@@ -1,0 +1,302 @@
+﻿Backup360 — Ücretsiz Kullanım Lisansı (Sürüm 1.1)
+=================================================
+
+Telif Hakkı (c) 2026 Ömer ÇARNAÇAR — Tüm hakları saklıdır.
+
+    Geliştirici : Ömer ÇARNAÇAR
+    Rol         : Geliştirici
+    LinkedIn    : https://www.linkedin.com/in/omercarnacar/
+
+
+LİSANS TÜRÜ
+-----------
+Bu yazılım, KAYNAĞI AÇIK ve ÜCRETSİZ bir TESCİLLİ (proprietary) lisans ile
+sunulmaktadır.
+
+ÖNEMLİ: Bu lisans bir AÇIK KAYNAK (open source) lisansı DEĞİLDİR.
+Kaynak kodu herkese açık olarak yayınlanmıştır ve incelenebilir, ancak
+yazılımın para karşılığı satılması yasaklandığı için lisans, Açık Kaynak
+Girişimi'nin (OSI) Açık Kaynak Tanımı'nı karşılamaz. Yazılım MIT, GPL, Apache
+veya benzeri bir lisans altında dağıtılmamaktadır.
+
+Kısaca: "kaynağı görülebilir, serbestçe kullanılabilir, satılamaz."
+
+Kullanım süresiz ve sınırsızdır; lisans anahtarı gerekmez, dosya veya boyut
+sınırı yoktur, kullanıcı sayısı sınırı yoktur, hiçbir ücret alınmaz.
+
+Yazılımla birlikte dağıtılan üçüncü taraf bileşenler (7-Zip, rclone vb.) bu
+lisansa değil, kendi lisanslarına tabidir; bkz. THIRD-PARTY.md.
+
+
+1. İZİN VERİLENLER
+------------------
+a) Yazılımı kişisel, kurumsal, kamusal ve ticari ORTAMLARDA ücretsiz
+   kullanmak. Bir şirketin kendi iç işleyişinde kullanması serbesttir;
+   şirketin kâr amacı gütmesi bir engel teşkil etmez.
+b) Yazılımı olduğu gibi, bedelsiz olarak kopyalamak ve dağıtmak.
+c) Kaynak kodunu incelemek ve kendi ihtiyaçlarınız doğrultusunda
+   değiştirmek.
+d) Değiştirilmiş sürümleri, bu lisans koşullarına uymak kaydıyla
+   bedelsiz dağıtmak.
+
+
+2. YASAKLAR
+-----------
+a) Yazılımı PARA KARŞILIĞI SATMAK, kiralamak, abonelik ile sunmak veya
+   herhangi bir bedel karşılığında devretmek YASAKTIR.
+b) Yazılımı ücretli bir ürünün, paketin veya hizmetin parçası olarak
+   satmak YASAKTIR.
+c) Yazılımın kendisi için lisans ücreti, kurulum bedeli, aktivasyon
+   ücreti veya benzeri bir bedel talep etmek YASAKTIR.
+d) Geliştirici adını, iletişim bilgisini ve bu lisans metnini kaldırmak
+   veya değiştirmek YASAKTIR.
+
+Not: Yazılımı kuran/yapılandıran bir bilişim hizmet sağlayıcısının kendi
+EMEĞİ için ücret alması bu yasağın kapsamı dışındadır. Yasaklanan, yazılımın
+kendisinin bir bedel karşılığı devredilmesidir.
+
+Değiştirilmiş sürümler dağıtılırsa, bu lisans metni ve geliştirici bilgisi
+aynen korunmalı; yapılan değişiklikler açıkça belirtilmelidir.
+
+
+3. GARANTİ REDDİ
+----------------
+BU YAZILIM "OLDUĞU GİBİ" (AS IS) VE "MEVCUT HALİYLE" SUNULMAKTADIR.
+
+Açık veya örtük, yazılı veya sözlü HİÇBİR GARANTİ VERİLMEMEKTEDİR. Bu,
+aşağıdakileri de kapsar ancak bunlarla sınırlı değildir:
+
+  * Satılabilirlik (ticari elverişlilik) garantisi
+  * Belirli bir amaca uygunluk garantisi
+  * Kesintisiz, hatasız veya güvenli çalışacağı garantisi
+  * Üçüncü kişilerin haklarını ihlal etmediği garantisi
+  * Herhangi bir donanım, bulut hizmeti, işletim sistemi sürümü veya
+    başka bir yazılımla uyumlu olacağı garantisi
+  * Dosyaların doğru, eksiksiz, zamanında veya hiç sıkıştırılacağı,
+    yedekleneceği, taşınacağı ya da geri yükleneceği garantisi
+
+Yazılımın belirli bir ortamda çalışacağı taahhüt edilmemektedir.
+
+
+4. SORUMLULUK REDDİ
+-------------------
+BU YAZILIM TAMAMEN ÜCRETSİZ OLARAK, HİÇBİR BEDEL ALINMAKSIZIN SUNULDUĞU
+İÇİN GELİŞTİRİCİ HİÇBİR SORUMLULUK ÜSTLENMEMEKTEDİR.
+
+Geliştirici; yazılımın kullanılmasından, kullanılamamasından, hatalı
+çalışmasından veya hiç çalışmamasından doğabilecek DOĞRUDAN, DOLAYLI, ARIZİ,
+ÖZEL, CEZAİ veya SONUÇSAL hiçbir zarardan sorumlu tutulamaz. Bu,
+aşağıdakileri de kapsar ancak bunlarla sınırlı değildir:
+
+  * Veri, dosya veya yedek kaybı, bozulması ya da silinmesi
+  * Taşınan veya üzerine yazılan dosyalar
+  * Geri yüklenemeyen, eksik veya hiç alınamayan yedekler
+  * Yedeklere yetkisiz erişim ve bundan doğan gizlilik ihlali
+  * İş kaybı, kâr kaybı, üretim durması, iş kesintisi
+  * İtibar kaybı veya müşteri kaybı
+  * Bulut sağlayıcı ücretleri, kotaları veya hesap kısıtlamaları
+  * Sistem veya işletim sistemi yapılandırmasında meydana gelebilecek
+    bozulmalar
+  * Üçüncü kişilerin uğrayacağı zararlar
+
+Bu sorumsuzluk, geliştiricinin söz konusu zararların olasılığı hakkında
+önceden bilgilendirilmiş olması halinde dahi geçerlidir.
+
+Geliştiricinin toplam sorumluluğu, yürürlükteki hukukun izin verdiği azami
+ölçüde SIFIR (0) TL ile sınırlıdır; zira yazılım için hiçbir bedel
+alınmamıştır.
+
+Yürürlükteki mevzuatın kaldırılamayacak asgari haklar öngördüğü hallerde,
+bu bölüm hukuken izin verilen azami ölçüde uygulanır.
+
+
+5. KULLANICININ SORUMLULUĞU
+---------------------------
+Yazılımı kuran, çalıştıran veya dağıtan kişi/kurum aşağıdakilerden
+kendisi sorumludur:
+
+a) TEST: Yazılımı gerçek (üretim) ortamına almadan önce kendi ortamında
+   test etmek. Kritik iş süreçlerinde kullanmadan önce yeterliliğini
+   doğrulamak kullanıcının sorumluluğundadır.
+b) YEDEKLERİN DENETİMİ: Kritik verilerin bağımsız kopyalarını tutmak ve
+   yedeklerin geri yüklenebildiğini düzenli olarak denemek. Yazılım
+   zamanlanmış görev oluşturur, dosyaları klasörler arasında taşır ve
+   kullanıcının ayarlarına göre eski yedekleri silebilir.
+c) KİŞİSEL VERİLER: Yedeklenen dosyalar ilgili mevzuat kapsamında (KVKK,
+   GDPR vb.) KİŞİSEL VERİ içerebilir. Bu verilerin işlenmesi, saklanması,
+   aydınlatma yükümlülüğü ve imhası bakımından VERİ SORUMLUSU, yazılımı
+   kullanan kişi veya kurumdur — geliştirici değildir. Dosyalar yalnızca
+   kullanıcının seçtiği hedeflere gönderilir; geliştirici bu verilere
+   hiçbir şekilde erişmez, yazılım geliştiriciye veri göndermez.
+d) GÜVENLİK: Giriş ve arşiv parolalarının belirlenmesi, veri klasörünün ve
+   yazılıma bağlanan bulut hesaplarının korunması kullanıcıya aittir.
+e) MEVZUAT: Yazılımın kullanıldığı ülkedeki yasal düzenlemelere uygunluk.
+
+
+6. DESTEK VE SÜREKLİLİK
+-----------------------
+Geliştiricinin hiçbir DESTEK, BAKIM, GÜNCELLEME, HATA GİDERME veya
+KURULUM YARDIMI sağlama yükümlülüğü YOKTUR.
+
+Geliştirici; yazılımı dilediği zaman, önceden haber vermeksizin
+değiştirebilir, geliştirmeyi durdurabilir veya yayından kaldırabilir.
+Yazılımın gelecekte kullanılabilir kalacağı taahhüt edilmemektedir.
+
+Gönüllülük esasıyla verilen yanıtlar, yardım veya öneriler bir taahhüt
+oluşturmaz ve bu lisanstaki sorumluluk reddini değiştirmez.
+
+
+7. UYGULANACAK HUKUK
+--------------------
+Bu lisanstan doğabilecek uyuşmazlıklarda Türkiye Cumhuriyeti hukuku
+uygulanır.
+
+Bu lisansın herhangi bir hükmünün geçersiz sayılması, diğer hükümlerin
+geçerliliğini etkilemez.
+
+
+8. KABUL
+--------
+Yazılımı indirmek, kurmak, kopyalamak veya kullanmak bu lisans koşullarının
+TAMAMININ okunduğu ve kabul edildiği anlamına gelir. Koşulları kabul
+etmiyorsanız yazılımı kullanmayınız.
+
+
+===================================================================
+ENGLISH TRANSLATION (Türkçe metin asıldır / the Turkish text prevails)
+===================================================================
+
+Backup360 — Free Use License (version 1.1)
+Copyright (c) 2026 Ömer ÇARNAÇAR. All rights reserved.
+
+    Developer : Ömer ÇARNAÇAR
+    LinkedIn  : https://www.linkedin.com/in/omercarnacar/
+
+
+LICENSE TYPE
+
+This software is released under a SOURCE-AVAILABLE, FREE-OF-CHARGE
+PROPRIETARY license.
+
+IMPORTANT: This is NOT an open source license. The source code is published
+and may be inspected, but because selling the software is prohibited, this
+license does not meet the Open Source Initiative's Open Source Definition.
+It is not MIT, GPL, Apache or any similar license.
+
+In short: "source visible, free to use, cannot be sold."
+
+Use is perpetual and unlimited. No license key, no file or size limit, no user
+limit, no fee of any kind.
+
+
+1. PERMITTED
+
+a) Free use in personal, corporate, public-sector and commercial
+   ENVIRONMENTS, including internal use by for-profit companies.
+b) Copying and distributing the software as is, free of charge.
+c) Inspecting the source code and modifying it for your own needs.
+d) Distributing modified versions free of charge, subject to this license.
+
+
+2. PROHIBITED
+
+a) SELLING, renting, offering by subscription, or transferring the
+   software for any fee is PROHIBITED.
+b) Including the software in a paid product, bundle or service is
+   PROHIBITED.
+c) Charging a license fee, installation fee, activation fee or any similar
+   fee FOR THE SOFTWARE ITSELF is PROHIBITED.
+d) Removing or altering the developer's name, contact details or this
+   license text is PROHIBITED.
+
+Note: an IT service provider charging for its own LABOUR in installing or
+configuring the software is outside the scope of this prohibition. What is
+prohibited is transferring the software itself for a fee.
+
+Modified versions must retain this license text and the developer
+information unchanged, and must clearly state the changes made.
+
+
+3. DISCLAIMER OF WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE".
+
+NO WARRANTY OF ANY KIND is given, express or implied, written or oral,
+including but not limited to: merchantability; fitness for a particular
+purpose; uninterrupted, error-free or secure operation; non-infringement;
+compatibility with any hardware, cloud service, operating system version
+or other software; and any warranty that files will be compressed, backed
+up, moved or restored correctly, completely, on time, or at all.
+
+There is no representation that the software will work in any given
+environment.
+
+
+4. LIMITATION OF LIABILITY
+
+BECAUSE THIS SOFTWARE IS PROVIDED ENTIRELY FREE OF CHARGE, THE DEVELOPER
+ACCEPTS NO LIABILITY WHATSOEVER.
+
+The developer shall not be liable for any DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, PUNITIVE or CONSEQUENTIAL damages arising from the use of, the
+inability to use, the malfunction of, or the total failure of the software,
+including but not limited to: loss, corruption or deletion of data, files
+or backups; files moved or overwritten; backups that cannot be restored;
+failed or incomplete scheduled backups; unauthorised access to backups;
+cloud provider costs, quotas or account restrictions; loss of business,
+profit or production; business interruption; damage to reputation; damage
+to system or operating system configuration; and damages suffered by
+third parties.
+
+This applies even if the developer has been advised of the possibility of
+such damages.
+
+To the maximum extent permitted by applicable law, the developer's total
+liability is limited to ZERO, as no fee has been received for the software.
+
+Where applicable law grants rights that cannot be excluded, this section
+applies to the maximum extent legally permitted.
+
+
+5. USER RESPONSIBILITIES
+
+The person or organisation installing, running or distributing the software
+is solely responsible for:
+
+a) TESTING it in their own environment before production use.
+b) KEEPING INDEPENDENT COPIES of critical data and regularly testing that
+   backups can be restored. The software creates scheduled tasks, moves
+   files between folders and can delete old backups according to the
+   settings chosen by the user.
+c) PERSONAL DATA: the files backed up may contain PERSONAL DATA under
+   applicable law (GDPR, KVKK, etc.). The DATA CONTROLLER is the person or
+   organisation using the software, NOT the developer. Files are sent only
+   to the destinations chosen by the user; the developer has no access to
+   them and the software sends nothing to the developer.
+d) SECURITY: setting login and archive passwords, protecting the data
+   folder and the cloud accounts connected to the software.
+e) COMPLIANCE with the laws of the country of use.
+
+
+6. NO SUPPORT OR CONTINUITY
+
+The developer has NO obligation to provide support, maintenance, updates,
+bug fixes or installation assistance, and may modify, discontinue or
+withdraw the software at any time without notice. There is no commitment
+that the software will remain available.
+
+Any assistance given voluntarily creates no obligation and does not alter
+this disclaimer.
+
+
+7. GOVERNING LAW
+
+This license is governed by the laws of the Republic of Türkiye. If any
+provision is held invalid, the remaining provisions remain in effect.
+
+
+8. ACCEPTANCE
+
+Downloading, installing, copying or using the software means that these
+terms have been read and accepted in full. If you do not accept them, do
+not use the software.

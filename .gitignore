@@ -1,0 +1,8 @@
+bin/
+obj/
+dist/
+data/
+.test-tmp/
+.vs/
+*.user
+TestResults/
