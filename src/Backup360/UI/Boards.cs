@@ -109,7 +109,7 @@ public abstract class JobsPageBase : BoardPage
 
     private Job NewJob() => _section switch
     {
-        "sql" => new Job { Mode = "database" },
+        "sql" => new Job { Mode = "database", DbPort = 1433 },
         "folder-sync" => new Job { Mode = "sync", SyncKind = "folder", RemoteFolder = "", MirrorDelete = true },
         "sql-sync" => new Job { Mode = "sync", SyncKind = "sql", RemoteFolder = "SQL-Yedekler", MirrorDelete = true },
         _ => new Job { Mode = "mirror", DatedOutput = "folder" },

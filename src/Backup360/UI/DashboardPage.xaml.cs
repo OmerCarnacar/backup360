@@ -10,6 +10,10 @@ using WUI = Wpf.Ui.Controls;
 
 namespace Backup360.UI;
 
+public sealed record StatusRow(WUI.SymbolRegular Icon, Brush Brush, string Label, int Count);
+
+public sealed record TopRow(string Name, string Value, double Ratio);
+
 public sealed record FeedItem(WUI.SymbolRegular Icon, Brush Brush, string Name, string Label, string When);
 
 public sealed class UpcomingVm : Observable
@@ -42,7 +46,6 @@ public sealed class UpcomingVm : Observable
 
 public partial class DashboardPage
 {
-    private static readonly string[] Days = { "Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt" };
     private readonly DispatcherTimer _live = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _slow = new() { Interval = TimeSpan.FromSeconds(30) };
@@ -76,7 +79,7 @@ public partial class DashboardPage
             if (view == null) LivePanel.Children.Add(new ActivityView(state));
             else view.Update(state);
         }
-        LiveEmpty.Visibility = states.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        LiveTitle.Visibility = states.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static TimeSpan Window(Schedule s) => s.Type switch
@@ -87,36 +90,82 @@ public partial class DashboardPage
         _ => TimeSpan.FromDays(1),
     };
 
-    private void DrawChart(List<RunRecord> recent)
+    private List<RunRecord> _runs = new();
+
+    private void Chart_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        var days = Enumerable.Range(0, 7).Select(i => DateTime.Today.AddDays(i - 6)).ToList();
-        int Count(DateTime day, Func<string, bool> match) => recent.Count(r => DateTime.TryParse(r.Started, out var d) && d.Date == day && match(r.Status));
+        if (IsLoaded) DrawChart();
+    }
+
+    private void DrawChart()
+    {
+        var range = RangeBox.SelectedIndex switch { 1 => "weekly", 2 => "monthly", _ => "daily" };
+        var bytes = MetricBox.SelectedIndex != 1;
+        var buckets = RunStats.Build(_runs, range, DateTime.Today);
+        ChartTitle.Text = (bytes ? "Aktarılan veri" : "Çalışma sayısı") + range switch { "weekly" => " · son 12 hafta", "monthly" => " · son 12 ay", _ => " · son 14 gün" };
+
         var ink = new SolidColorPaint(ThemeService.IsDark ? SKColor.Parse("#CBD5E1") : SKColor.Parse("#475569"));
         var grid = new SolidColorPaint(ThemeService.IsDark ? SKColor.Parse("#334155") : SKColor.Parse("#E2E8F0")) { StrokeThickness = 1 };
+        var indigo = new SolidColorPaint(SKColor.Parse("#6366F1"));
 
-        Chart.Series = new ISeries[]
+        if (bytes)
         {
-            new StackedColumnSeries<int> { Name = "Başarılı", Values = days.Select(d => Count(d, s => s == "success")).ToArray(), Fill = new SolidColorPaint(SKColor.Parse("#6366F1")), MaxBarWidth = 30, Rx = 4, Ry = 4 },
-            new StackedColumnSeries<int> { Name = "Hata / uyarı", Values = days.Select(d => Count(d, s => s is "failed" or "warning")).ToArray(), Fill = new SolidColorPaint(SKColor.Parse("#D97706")), MaxBarWidth = 30, Rx = 4, Ry = 4 },
-        };
-        Chart.XAxes = new[] { new Axis { Labels = days.Select(d => Days[(int)d.DayOfWeek]).ToArray(), LabelsPaint = ink, TextSize = 12 } };
-        Chart.YAxes = new[] { new Axis { MinLimit = 0, MinStep = 1, LabelsPaint = ink, SeparatorsPaint = grid, TextSize = 12 } };
-        Chart.LegendTextPaint = ink;
+            Chart.Series = new ISeries[] { new ColumnSeries<double> { Name = "Aktarılan", Values = buckets.Select(b => (double)b.Bytes).ToArray(), Fill = indigo, MaxBarWidth = 34, Rx = 4, Ry = 4, YToolTipLabelFormatter = p => Fmt.Size(p.Coordinate.PrimaryValue) } };
+            Chart.LegendPosition = LiveChartsCore.Measure.LegendPosition.Hidden;
+            Chart.YAxes = new[] { new Axis { MinLimit = 0, Labeler = v => v <= 0 ? "0" : Fmt.Size(v), LabelsPaint = ink, SeparatorsPaint = grid, TextSize = 12 } };
+        }
+        else
+        {
+            Chart.Series = new ISeries[]
+            {
+                new StackedColumnSeries<int> { Name = "Başarılı", Values = buckets.Select(b => b.Ok).ToArray(), Fill = indigo, MaxBarWidth = 34, Rx = 4, Ry = 4 },
+                new StackedColumnSeries<int> { Name = "Hata / uyarı", Values = buckets.Select(b => b.Problem).ToArray(), Fill = new SolidColorPaint(SKColor.Parse("#D97706")), MaxBarWidth = 34, Rx = 4, Ry = 4 },
+            };
+            Chart.LegendPosition = LiveChartsCore.Measure.LegendPosition.Top;
+            Chart.LegendTextPaint = ink;
+            Chart.YAxes = new[] { new Axis { MinLimit = 0, MinStep = 1, LabelsPaint = ink, SeparatorsPaint = grid, TextSize = 12 } };
+        }
+        Chart.XAxes = new[] { new Axis { Labels = buckets.Select(b => b.Label).ToArray(), LabelsPaint = ink, TextSize = 11, LabelsRotation = range == "daily" ? 0 : 0 } };
     }
 
     public async Task RefreshAsync()
     {
-        var all = Db.RecentRuns(1000);
+        var all = Db.RecentRuns(20000);
+        _runs = all;
         var recent = all.Where(r => DateTime.TryParse(r.Started, out var d) && d > DateTime.Now.AddDays(-7)).ToList();
         var failures = recent.Count(r => r.Status == "failed");
-        StatOk.Text = recent.Count(r => r.Status == "success").ToString();
-        StatBad.Text = $"{failures} / {recent.Count(r => r.Status == "warning")}";
+        var allJobs = Db.Jobs();
+        StatOk.Text = $"{allJobs.Count(j => j.Schedule.Type != "none")} / {allJobs.Count}";
+        StatBad.Text = (await Cloud.ListTargetsAsync()).Count.ToString();
         StatSent.Text = Fmt.Size(recent.Sum(r => r.Bytes));
         var seconds = recent.Where(r => r.Bytes > 0).Sum(Fmt.RunSeconds);
         StatSpeed.Text = seconds > 0 ? $"{Fmt.Size(recent.Sum(r => r.Bytes) / seconds)}/sn" : "—";
-        DrawChart(recent);
+        DrawChart();
 
-        var feed = all.Take(5).Select(r =>
+        var running = LiveFiles.ReadAll().Where(s => s.Kind == "job").Select(s => s.RefId).ToHashSet();
+        var lastStatus = allJobs.Select(j => running.Contains(j.Id) ? "running" : Db.LastRun("job", j.Id)?.Status ?? "none").ToList();
+        int Of(params string[] s) => lastStatus.Count(s.Contains);
+        StatusList.ItemsSource = new[]
+        {
+            new StatusRow(WUI.SymbolRegular.PlayCircle24, Fmt.Indigo, "Çalışıyor", Of("running")),
+            new StatusRow(WUI.SymbolRegular.CheckmarkCircle24, Fmt.Success, "Başarılı", Of("success")),
+            new StatusRow(WUI.SymbolRegular.Warning24, Fmt.Warning, "Uyarılı", Of("warning")),
+            new StatusRow(WUI.SymbolRegular.DismissCircle24, Fmt.Danger, "Hatalı", Of("failed")),
+            new StatusRow(WUI.SymbolRegular.Prohibited24, Fmt.Neutral, "İptal edildi", Of("canceled")),
+            new StatusRow(WUI.SymbolRegular.Circle24, Fmt.Neutral, "Henüz çalışmadı", Of("none")),
+        };
+
+        var totals = RunStats.PerJob(all);
+        var maxBytes = Math.Max(1, totals.Select(x => x.Bytes).DefaultIfEmpty(1).Max());
+        var maxSeconds = Math.Max(1, totals.Select(x => x.Seconds).DefaultIfEmpty(1).Max());
+        var biggest = totals.Where(x => x.Bytes > 0).OrderByDescending(x => x.Bytes).Take(4).Select(x => new TopRow(x.Name, Fmt.Size(x.Bytes), 100d * x.Bytes / maxBytes)).ToList();
+        var longest = totals.Where(x => x.Seconds > 0).OrderByDescending(x => x.Seconds).Take(4).Select(x => new TopRow(x.Name, Fmt.Duration((long)x.Seconds), 100 * x.Seconds / maxSeconds)).ToList();
+        Biggest.ItemsSource = biggest;
+        Longest.ItemsSource = longest;
+        BiggestEmpty.Visibility = biggest.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        LongestEmpty.Visibility = longest.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        var feed = all.Take(4).Select(r =>
         {
             var (label, brush) = Fmt.Status(r.Status);
             var icon = r.Status switch { "success" => WUI.SymbolRegular.CheckmarkCircle24, "failed" => WUI.SymbolRegular.DismissCircle24, "warning" => WUI.SymbolRegular.Warning24, _ => WUI.SymbolRegular.Circle24 };

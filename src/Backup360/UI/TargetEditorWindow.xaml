@@ -16,7 +16,8 @@
                 <TextBlock Text="Giriş yöntemi" Style="{StaticResource FieldLabel}" />
                 <ComboBox x:Name="AuthBox" SelectionChanged="Auth_Changed" />
 
-                <StackPanel x:Name="clientId"><TextBlock Text="Google Client ID (kalıcı kullanım için önerilir)" Style="{StaticResource FieldLabel}" /><ui:TextBox x:Name="ClientId" /></StackPanel>
+                <StackPanel x:Name="customClient"><CheckBox x:Name="UseOwnClient" Content="Gelişmiş: kendi Google Client ID'mi kullanacağım" Margin="0,12,0,0" Checked="Own_Changed" Unchecked="Own_Changed" /></StackPanel>
+                <StackPanel x:Name="clientId"><TextBlock Text="Google Client ID" Style="{StaticResource FieldLabel}" /><ui:TextBox x:Name="ClientId" /></StackPanel>
                 <StackPanel x:Name="clientSecret"><TextBlock Text="Google Client Secret" Style="{StaticResource FieldLabel}" /><ui:PasswordBox x:Name="ClientSecret" /></StackPanel>
                 <StackPanel x:Name="fullDrive"><CheckBox x:Name="FullDrive" Margin="0,12,0,0"><TextBlock Text="Drive'daki tüm dosyalara eriş (Bulut Gezgini ve disk için). Kapalıysa yalnızca Backup360'ın yüklediği dosyalar görünür." TextWrapping="Wrap" /></CheckBox></StackPanel>
                 <StackPanel x:Name="token"><TextBlock Text="Token" Style="{StaticResource FieldLabel}" /><ui:TextBox x:Name="Token" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" /></StackPanel>

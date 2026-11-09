@@ -13,7 +13,7 @@ public sealed class DiffWindow : WUI.FluentWindow
 
     private readonly Job _job;
     private readonly TextBlock _summary = new() { Margin = new Thickness(0, 0, 0, 10), TextWrapping = TextWrapping.Wrap };
-    private readonly DataGrid _grid = new() { AutoGenerateColumns = false, IsReadOnly = true, HeadersVisibility = DataGridHeadersVisibility.Column, GridLinesVisibility = DataGridGridLinesVisibility.None, CanUserAddRows = false };
+    private readonly DataGrid _grid = new() { AutoGenerateColumns = false, IsReadOnly = true, HeadersVisibility = DataGridHeadersVisibility.Column, GridLinesVisibility = DataGridGridLinesVisibility.All, BorderThickness = new Thickness(1), CanUserAddRows = false };
     private readonly WUI.ProgressRing _ring = new() { IsIndeterminate = true, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 30, 0, 0) };
 
     public DiffWindow(Job job)
@@ -26,6 +26,8 @@ public sealed class DiffWindow : WUI.FluentWindow
         ExtendsContentIntoTitleBar = true;
         WindowBackdropType = WUI.WindowBackdropType.Mica;
 
+        foreach (var property in new[] { DataGrid.HorizontalGridLinesBrushProperty, DataGrid.VerticalGridLinesBrushProperty, BorderBrushProperty })
+            _grid.SetResourceReference(property, "ControlStrongStrokeColorDefaultBrush");
         _grid.Columns.Add(new DataGridTextColumn { Header = "Durum", Binding = new Binding(nameof(Row.Kind)), Width = 120 });
         _grid.Columns.Add(new DataGridTextColumn { Header = "Dosya", Binding = new Binding(nameof(Row.File)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         _grid.Columns.Add(new DataGridTextColumn { Header = "Hedef", Binding = new Binding(nameof(Row.Destination)), Width = 240 });

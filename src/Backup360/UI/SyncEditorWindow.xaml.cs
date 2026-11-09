@@ -16,6 +16,7 @@ public partial class SyncEditorWindow
     {
         _job = job;
         InitializeComponent();
+        Ui.FitToScreen(this);
         var sql = job.SyncKind == "sql";
         Title = Bar.Title = (job.Id == 0 ? "Yeni " : "") + (sql ? "SQL yedek eşitleme" : "Klasör eşitleme");
         NameBox.Text = job.Name;

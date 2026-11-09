@@ -127,6 +127,7 @@ public class ScreenTests
         Db.Save(new Job { Name = "SQL NAS", Mode = "sync", SyncKind = "sql", SyncFromJob = 2, Targets = new() { "nas" }, RemoteFolder = "SQL" });
         Page(typeof(FolderBackupPage), "isler.png");
         File.Delete(liveFile);
+        Shot(new MainWindow("admin"), "pano-genel.png", () => { }, 3000);
         Page(typeof(ExplorerPage), "gezgin.png");
         File.AppendAllText(AppPaths.RcloneConfig, "\n[Sirket-Drive]\ntype = drive\n\n[OneDrive]\ntype = onedrive\n\n[Dropbox]\ntype = dropbox\n\n[Kova]\ntype = s3\n");
         Page(typeof(FolderSyncPage), "esitleme.png");
@@ -154,6 +155,7 @@ public class ScreenTests
         Shot(new SyncEditorWindow(new Job { Mode = "sync", SyncKind = "sql", RemoteFolder = "SQL" }, targets), "esitleme-duzenle.png");
         Tab(job, 3, "is-hedef.png");
         Shot(new TargetEditorWindow(), "hedef.png");
+        Shot(new ScanWindow(start: false), "tarama.png", null, 400);
         Shot(new RuleEditorWindow(new MoveRule()), "kural.png");
         Shot(new PromptWindow("Klasör oluştur", "Klasör yolu:", "Backup360"), "prompt.png", null, 400);
         File.Delete(Path.Combine(ImgDir(), "prompt.png"));

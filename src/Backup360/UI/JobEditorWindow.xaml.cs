@@ -18,6 +18,7 @@ public partial class JobEditorWindow
     {
         _job = job;
         InitializeComponent();
+        Ui.FitToScreen(this);
         var title = job.Id == 0 ? "Yeni yedekleme işi" : "İşi düzenle";
         Title = Bar.Title = title;
 
@@ -91,6 +92,22 @@ public partial class JobEditorWindow
     private void AnyChanged(object sender, RoutedEventArgs e) => Sync();
     private void AnySelection(object sender, SelectionChangedEventArgs e) => Sync();
 
+    /// <summary>Motor değişince standart portu önerir; elle yazılmış farklı porta dokunmaz.</summary>
+    private void Engine_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_ready && DbPort.Value is 0 or 1433 or 3306 or null)
+            DbPort.Value = Engine switch { "mssql" => 1433, "mysql" => 3306, _ => 0 };
+        Sync();
+    }
+
+    private void Scan_Click(object sender, RoutedEventArgs e)
+    {
+        var scan = new ScanWindow { Owner = this };
+        if (scan.ShowDialog() != true || scan.Selected is not { } found) return;
+        DbServer.Text = found.Server;
+        if (found.Port > 0) DbPort.Value = found.Port;
+    }
+
     private void Level_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         var v = (int)e.NewValue;
@@ -113,7 +130,7 @@ public partial class JobEditorWindow
         var sqlite = Engine == "sqlite";
         var mssql = Engine == "mssql";
         DbServer.IsEnabled = DbPort.IsEnabled = !sqlite;
-        DbAuth.IsEnabled = mssql;
+        DbAuth.IsEnabled = ScanButton.IsEnabled = mssql;
         var login = Engine == "mysql" || (mssql && DbAuth.SelectedIndex == 1);
         DbUser.IsEnabled = DbPassword.IsEnabled = login;
         DbAll.IsEnabled = !sqlite;

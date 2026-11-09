@@ -20,7 +20,7 @@ _Tüm arşiv formatları · SQL Server, Always On, MySQL, SQLite · Zamanlama ·
 
 ## Ekran görüntüleri
 
-<img src="docs/img/login.png" alt="Giriş ekranı" width="49%"> <img src="docs/img/pano.png" alt="Canlı pano" width="49%">
+<img src="docs/img/login.png" alt="Giriş ekranı" width="49%"> <img src="docs/img/pano-genel.png" alt="Pano" width="49%">
 <img src="docs/img/isler.png" alt="Canlı ilerlemeli iş kartları" width="49%"> <img src="docs/img/is-gonderim.png" alt="Gönderim ayarı" width="49%">
 <img src="docs/img/hedefler.png" alt="Hedefler" width="49%"> <img src="docs/img/gezgin.png" alt="Bulut Gezgini" width="49%">
 
@@ -30,6 +30,7 @@ _Tüm arşiv formatları · SQL Server, Always On, MySQL, SQLite · Zamanlama ·
 |---|---|
 | 🗜️ **Tüm arşiv formatları** | 7z, zip, rar, tar, tar.gz, tar.bz2, tar.xz, tar.zst, wim. Aynı anda birden çok format seçilebilir. Varsayılan seviye en yüksektir. |
 | 🛢️ **Veritabanı yedeği** | SQL Server (Full, Differential, Log), MySQL/MariaDB ve SQLite. Her yedek doğrulanır, sıkıştırılır ve gönderilir. |
+| 🔎 **SQL Server taraması** | Bu bilgisayardaki ve yerel ağdaki SQL Server örneklerini listeler; varsayılan port 1433. |
 | 🔁 **Always On** | Yedek tercih edilen replikadan alınır. İkincilde COPY_ONLY ve eşitleme kuralları otomatik uygulanır. |
 | ☁️ **Çoklu hedef** | Birden çok Google Drive hesabı, OneDrive, Dropbox, yerel disk, USB veya ağ klasörü. |
 | 📁 **Çoklu kaynak** | Dosyalar, klasörler, USB ve `\\SUNUCU\Paylasim` ağ alanları tek işte toplanabilir. |
@@ -43,7 +44,7 @@ _Tüm arşiv formatları · SQL Server, Always On, MySQL, SQLite · Zamanlama ·
 | 🗂️ **Gruplar** | İşleri ve kuralları gruplayın, bir grubu tek tıkla sırayla çalıştırın. |
 | ⏰ **Zamanlama** | Dakika, saat, gün veya hafta bazlı. Uygulama kapalıyken de çalışır, kaçırılan görev bilgisayar açılınca yapılır. |
 | 🚚 **Klasör taşıma** | Bir klasöre yeni gelen dosyaları bulup diğer klasöre taşır. Yazılmakta olan ve açık dosyaları bekler. |
-| 📊 **Canlı pano** | Aşama hattı, hız, kalan süre, geçerli dosya ve zamanlama geri sayımı animasyonla gösterilir. |
+| 📊 **Pano** | Günlük, haftalık ve aylık aktarım grafiği, iş durumu, en büyük ve en uzun işler, canlı aktarım ve zamanlama geri sayımı. |
 | 🧪 **Bağlantı testi ve süre hesabı** | Hedefin gecikmesini ve gerçek yükleme hızını ölçer, işin tahmini aktarım süresini hesaplar. |
 | 📧 **E-posta bildirimi** | Hata olduğunda SMTP ile e-posta gönderir. Uyarı ve başarı bildirimi isteğe bağlıdır. |
 | ✅ **Doğrulama** | Arşiv göndermeden önce test edilir, yüklenen dosya özet değeriyle karşılaştırılır. |

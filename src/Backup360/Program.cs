@@ -83,6 +83,7 @@ internal static class Program
 
         var login = new LoginWindow();
         if (login.ShowDialog() != true) return 0;
+        MainWindow.ExitProcessOnClose = true;
         var main = new MainWindow(login.UserName);
         app.MainWindow = main;
         app.ShutdownMode = ShutdownMode.OnMainWindowClose;

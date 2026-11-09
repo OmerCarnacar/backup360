@@ -2,6 +2,7 @@ bin/
 obj/
 dist/
 run/
+src/Backup360/google-client.txt
 data/
 .test-tmp/
 .vs/

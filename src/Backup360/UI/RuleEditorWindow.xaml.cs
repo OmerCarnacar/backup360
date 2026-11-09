@@ -17,6 +17,7 @@ public partial class RuleEditorWindow
     {
         _rule = rule;
         InitializeComponent();
+        Ui.FitToScreen(this);
         Title = Bar.Title = rule.Id == 0 ? "Yeni taşıma kuralı" : "Kuralı düzenle";
         NameBox.Text = rule.Name;
         foreach (var g in Db.Rules().Select(x => x.Group).Append("Genel").Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x)) GroupBox.Items.Add(g);

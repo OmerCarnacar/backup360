@@ -1,6 +1,22 @@
 ## Yeni sürüm
 
 ### Eklendi
+- **Gelişmiş pano:** Günlük, haftalık ve aylık aktarım grafiği; geçerli iş durumu; en büyük ve en uzun süren işler
+- **SQL Server taraması:** Bu bilgisayardaki ve yerel ağdaki örnekleri listeleme; varsayılan port 1433
+- **Gün bazlı yedekte klasör yapısı:** İş / Tarih / Klasör / Alt klasörler
+- **Daha hızlı aktarım:** Aynı anda 8 dosya
+- Tablolarda ızgara görünümü, ekrana göre boyutlanan pencereler
+
+### Düzeltildi
+- Uygulama kapatıldığında sürecin görünmez halde açık kalması
+- Paylaşılan ortak Google kimliği artık kullanılmıyor
+
+### Önemli
+Bu sürümde hazır Google bağlantısı yoktur. Google Drive için **kendi Client ID'nizi** girmeniz gerekir; adımlar README'de.
+
+## 2026.11.09.1409
+
+### Eklendi
 - **WPF arayüz:** Windows 11 görünümü, koyu/açık tema, vurgu renkleri, gruplu yan menü
 - **Ayrı bölümler:** Klasör Yedekleme, Klasör Eşitleme, SQL Yedekleme, SQL Eşitleme
 - **Eşitleme:** Başka klasöre, NAS'a veya farklı PC'ye yalnızca farkları aktarma, "Farkları göster"

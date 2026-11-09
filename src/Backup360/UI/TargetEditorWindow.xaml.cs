@@ -26,6 +26,7 @@ public partial class TargetEditorWindow
     public TargetEditorWindow()
     {
         InitializeComponent();
+        Ui.FitToScreen(this);
         foreach (var t in Types)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };
@@ -33,7 +34,13 @@ public partial class TargetEditorWindow
             row.Children.Add(new TextBlock { Text = t.Label, VerticalAlignment = VerticalAlignment.Center });
             TypeBox.Items.Add(row);
         }
+        UseOwnClient.IsChecked = !GoogleClient.HasBuiltIn;
         TypeBox.SelectedIndex = 0;
+    }
+
+    private void Own_Changed(object sender, RoutedEventArgs e)
+    {
+        if (IsInitialized && TypeBox.SelectedIndex >= 0) Sync();
     }
 
     private string TypeKey => Types[Math.Max(0, TypeBox.SelectedIndex)].Key;
@@ -56,7 +63,7 @@ public partial class TargetEditorWindow
     {
         var visible = (TypeKey, AuthKey) switch
         {
-            ("drive", "browser") => new[] { "clientId", "clientSecret", "fullDrive" },
+            ("drive", "browser") => UseOwnClient.IsChecked == true ? new[] { "customClient", "clientId", "clientSecret", "fullDrive" } : new[] { "customClient", "fullDrive" },
             ("drive", "token") or ("dropbox", "token") => new[] { "token" },
             ("s3", _) => new[] { "access", "secret", "endpoint", "region" },
             ("sftp", _) or ("smb", _) => new[] { "host", "port", "user", "password" },
@@ -66,12 +73,12 @@ public partial class TargetEditorWindow
             ("alias", _) => new[] { "path" },
             _ => Array.Empty<string>(),
         };
-        foreach (var row in new FrameworkElement[] { clientId, clientSecret, fullDrive, token, host, port, url, user, password, tls, access, secret, endpoint, region, path })
+        foreach (var row in new FrameworkElement[] { customClient, clientId, clientSecret, fullDrive, token, host, port, url, user, password, tls, access, secret, endpoint, region, path })
             row.Visibility = visible.Contains(row.Name) ? Visibility.Visible : Visibility.Collapsed;
 
         var hint = (TypeKey, AuthKey) switch
         {
-            ("drive", "browser") => "Kaydedince tarayıcıda Google onayı açılır. Client ID boşsa rclone'un 2026 içinde kapanacak ortak kimliği kullanılır.",
+            ("drive", "browser") => GoogleClient.HasBuiltIn ? "Kaydet'e basın, tarayıcıda Google hesabınızı seçip izin verin. Başka bir şey gerekmez." : "Bu sürümde hazır Google bağlantısı yok. Kendi Client ID ve Secret değerlerinizi girin; paylaşılan ortak kimlik kullanılmaz.",
             (_, "browser") => "Kaydedince tarayıcıda hesap onayı açılır.",
             ("drive", "token") or ("dropbox", "token") => "\"rclone authorize\" komutunun verdiği JSON token'ı yapıştırın.",
             _ => "",
@@ -92,7 +99,7 @@ public partial class TargetEditorWindow
         {
             Definition = new TargetDefinition
             {
-                Name = NameBox.Text.Trim(), Type = TypeKey, Auth = AuthKey, ClientId = ClientId.Text.Trim(), ClientSecret = ClientSecret.Password.Trim(),
+                Name = NameBox.Text.Trim(), Type = TypeKey, Auth = AuthKey, ClientId = UseOwnClient.IsChecked == true ? ClientId.Text.Trim() : "", ClientSecret = UseOwnClient.IsChecked == true ? ClientSecret.Password.Trim() : "",
                 Token = Token.Text.Trim(), Host = Host.Text.Trim(), Port = (int)(Port.Value ?? 0), Url = Url.Text.Trim(), User = User.Text.Trim(), Password = PasswordBox.Password,
                 Tls = Tls.IsChecked == true, FullAccess = FullDrive.IsChecked == true, AccessKey = Access.Text.Trim(), SecretKey = Secret.Password.Trim(), Endpoint = Endpoint.Text.Trim(), Region = Region.Text.Trim(), Path = PathBox.Text.Trim(),
             };

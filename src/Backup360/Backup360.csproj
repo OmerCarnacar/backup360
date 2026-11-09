@@ -24,6 +24,7 @@
 
   <ItemGroup>
         <Resource Include="..\..\assets\logo.png" Link="Assets\logo.png" />
+    <EmbeddedResource Include="google-client.txt" LogicalName="google-client.txt" Condition="Exists('google-client.txt')" />
     <AssemblyMetadata Include="BuildCode" Value="$(BuildCode)" />
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.1.0-dev-798" />
     <PackageReference Include="MailKit" Version="4.18.2" />

@@ -105,11 +105,37 @@ public class TargetTests
         Assert.Equal((mode, output), JobModes.Map(dated, database, compress));
 
     [Theory]
-    [InlineData("googleapi: Error 403: Quota exceeded, rateLimitExceeded", "Client ID")]
-    [InlineData("\"reason\": \"RATE_LIMIT_EXCEEDED\"", "Client ID")]
+    [InlineData("googleapi: Error 403: Quota exceeded, rateLimitExceeded", "yeniden tanımlayın")]
+    [InlineData("\"reason\": \"RATE_LIMIT_EXCEEDED\"", "sizin hesabınızla ilgili değil")]
     [InlineData("Error 403: storageQuotaExceeded", "dolu")]
     [InlineData("oauth2: invalid_grant", "yeniden tanımlayın")]
     public void Provider_errors_are_explained(string raw, string expected) => Assert.Contains(expected, Cloud.Explain(raw));
+
+    [Fact]
+    public void Shared_google_client_is_never_used()
+    {
+        Environment.SetEnvironmentVariable("BACKUP360_GOOGLE_CLIENT", "");
+        try
+        {
+            Assert.False(GoogleClient.HasBuiltIn);
+            Assert.Throws<ArgumentException>(() => new TargetDefinition { Name = "g", Type = "drive", Auth = "browser" }.Validate());
+            new TargetDefinition { Name = "g", Type = "drive", Auth = "browser", ClientId = "id", ClientSecret = "s" }.Validate();
+        }
+        finally { Environment.SetEnvironmentVariable("BACKUP360_GOOGLE_CLIENT", null); }
+    }
+
+    [Fact]
+    public void Built_in_google_client_is_used_unless_user_supplies_one()
+    {
+        Environment.SetEnvironmentVariable("BACKUP360_GOOGLE_CLIENT", "gomulu-id\ngomulu-secret");
+        try
+        {
+            Assert.True(GoogleClient.HasBuiltIn);
+            Assert.Equal(("gomulu-id", "gomulu-secret"), GoogleClient.Resolve(new TargetDefinition { Type = "drive" }));
+            Assert.Equal(("benim", "sir"), GoogleClient.Resolve(new TargetDefinition { Type = "drive", ClientId = "benim", ClientSecret = "sir" }));
+        }
+        finally { Environment.SetEnvironmentVariable("BACKUP360_GOOGLE_CLIENT", null); }
+    }
 
     [Fact]
     public void Validation_rejects_incomplete_definitions()

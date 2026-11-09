@@ -47,6 +47,9 @@ public sealed class TargetDefinition
     {
         void Need(string value, string label) { if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException($"{label} boş olamaz."); }
         Need(Name, "Hedef adı");
+        // rclone'un herkesle paylaşılan Google kimliği kota nedeniyle güvenilmez: asla ona düşülmez.
+        if (Type == "drive" && Auth == "browser" && string.IsNullOrWhiteSpace(ClientId) && !GoogleClient.HasBuiltIn)
+            throw new ArgumentException("Google Drive için Client ID gerekli. Paylaşılan ortak kimlik kullanılmaz.");
         switch (Type)
         {
             case "s3": Need(AccessKey, "Access Key"); Need(SecretKey, "Secret Key"); break;
@@ -79,7 +82,7 @@ public static class Cloud
     public static string Explain(string text)
     {
         if (text.Contains("rateLimitExceeded", StringComparison.OrdinalIgnoreCase) || text.Contains("RATE_LIMIT_EXCEEDED", StringComparison.OrdinalIgnoreCase))
-            return "Google kota sınırı aşıldı. Hedefi kaldırıp kendi Google Client ID'nizle yeniden tanımlayın.";
+            return "Google, bu hedefin kullandığı paylaşılan bağlantıyı kota nedeniyle reddetti; sizin hesabınızla ilgili değil. Hedefi kaldırıp yeniden tanımlayın.";
         if (text.Contains("storageQuotaExceeded", StringComparison.OrdinalIgnoreCase))
             return "Hedefin depolama alanı dolu.";
         if (text.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase))
@@ -136,8 +139,9 @@ public static class Cloud
         {
             case "drive":
                 Set("scope", d.FullAccess ? "drive" : "drive.file");
-                Set("client_id", d.ClientId);
-                Set("client_secret", d.ClientSecret);
+                var (clientId, clientSecret) = GoogleClient.Resolve(d);
+                Set("client_id", clientId);
+                Set("client_secret", clientSecret);
                 break;
             case "s3":
                 Set("provider", string.IsNullOrWhiteSpace(d.Endpoint) ? "AWS" : "Other");
@@ -244,7 +248,7 @@ public static class Cloud
     };
 
     private static void AddTransferFlags(List<string> args) =>
-        args.AddRange(new[] { "--retries", "3", "--low-level-retries", "6", "--drive-chunk-size", "64M", "--use-json-log", "--stats", "1s", "--log-level", "INFO" });
+        args.AddRange(new[] { "--retries", "3", "--low-level-retries", "6", "--drive-chunk-size", "64M", "--transfers", "8", "--checkers", "16", "--fast-list", "--use-json-log", "--stats", "1s", "--log-level", "INFO" });
 
     /// <summary>Dosyayı yükler ve bulut kopyasını özet değeriyle karşılaştırır.</summary>
     public static async Task UploadAsync(string localFile, string target, string folder, Action<string>? log, Action<TransferStats>? stats, CancellationToken ct)

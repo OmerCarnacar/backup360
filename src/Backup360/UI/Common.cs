@@ -214,6 +214,16 @@ public static class Ui
         return window.ShowDialog() == true ? window.Value : null;
     }
 
+    /// <summary>Pencereyi çalışma alanına sığdırır; küçük ekranda taşmaz.</summary>
+    public static void FitToScreen(Window w)
+    {
+        var area = SystemParameters.WorkArea;
+        w.MinWidth = Math.Min(w.MinWidth, area.Width - 24);
+        w.MinHeight = Math.Min(w.MinHeight, area.Height - 24);
+        w.Width = Math.Min(w.Width, area.Width - 24);
+        w.Height = Math.Min(w.Height, area.Height - 24);
+    }
+
     public static Window Owner(DependencyObject d) => Window.GetWindow(d) ?? Application.Current.MainWindow;
 
     public static WUI.SymbolIcon Symbol(WUI.SymbolRegular s) => new() { Symbol = s };
