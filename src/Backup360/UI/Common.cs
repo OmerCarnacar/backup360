@@ -179,12 +179,16 @@ public sealed class LiveCardVm(ICommand? stop = null) : Observable
     public void Hide() => Visibility = Visibility.Collapsed;
 }
 
+public sealed record DayRowVm(string Day, string Time, string Count, string Size, string Status, Brush StatusBrush);
+
 public sealed record CardVm(WUI.SymbolRegular Icon, Brush Accent, string Title, string Subtitle, string[] Chips, string StatusText, Brush StatusBrush, string Footer, CardAction[] Actions)
 {
     public LiveCardVm Live { get; init; } = new();
     public ImageSource? Logo { get; init; }
     public Visibility LogoVisibility => Logo != null ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IconVisibility => Logo == null ? Visibility.Visible : Visibility.Collapsed;
+    public IReadOnlyList<DayRowVm> Days { get; init; } = Array.Empty<DayRowVm>();
+    public Visibility DaysVisibility => Days.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 }
 
 public sealed record GroupVm(string Name, int Count, ObservableCollection<CardVm> Cards, CardAction? Action, Visibility ActionVisibility);

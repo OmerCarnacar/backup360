@@ -43,6 +43,7 @@ public sealed class Job
     public string Group { get; set; } = "Genel";
     public string SyncKind { get; set; } = "folder";   // folder | sql
     public long SyncFromJob { get; set; }   // SQL eşitlemede yedekleri alınacak iş
+    public bool UseDateFolder { get; set; } = true;   // false: alt klasör arşivleri doğrudan iş klasörüne yazılır
     public string DatedOutput { get; set; } = "archive";   // archive: sıkıştırılmış | folder: klasör olarak
     public int DaysFilter { get; set; }   // >0 ise yalnızca son N günde değişen alt klasörler
     public int KeepDays { get; set; }     // >0 ise N günden eski yedekler silinir
@@ -86,6 +87,9 @@ public sealed class MoveRule
 }
 
 public sealed record RunRecord(long Id, string Kind, long RefId, string Name, string Started, string? Ended, string Status, string Detail, long Bytes);
+
+/// <summary>Bir işin tek güne ait yedek özeti; durum o günün en son çalışmasıdır.</summary>
+public sealed record DayRuns(DateTime Day, string LastTime, int Count, long Bytes, string Status);
 
 public static class Db
 {
@@ -249,6 +253,21 @@ public static class Db
 
     public static RunRecord? LastRun(string kind, long refId) =>
         Query($"SELECT {RunColumns} FROM runs WHERE kind=$k AND ref_id=$r ORDER BY id DESC LIMIT 1", MapRun, ("$k", kind), ("$r", refId)).FirstOrDefault();
+
+    public static List<DayRuns> Days(string kind, long refId, int days = 5) =>
+        SummarizeDays(Query($"SELECT {RunColumns} FROM runs WHERE kind=$k AND ref_id=$r AND status<>'running' ORDER BY id DESC LIMIT 500", MapRun, ("$k", kind), ("$r", refId)), days);
+
+    public static List<DayRuns> SummarizeDays(IEnumerable<RunRecord> runs, int days) =>
+        runs.Where(r => r.Status != "running")
+            .GroupBy(r => r.Started[..10])
+            .OrderByDescending(g => g.Key, StringComparer.Ordinal)
+            .Take(days)
+            .Select(g =>
+            {
+                var latest = g.OrderByDescending(r => r.Started, StringComparer.Ordinal).ThenByDescending(r => r.Id).First();
+                return new DayRuns(DateTime.ParseExact(g.Key, "yyyy-MM-dd", CultureInfo.InvariantCulture), latest.Started[11..16], g.Count(), g.Sum(r => r.Bytes), latest.Status);
+            })
+            .ToList();
 
     /// <summary>Çalışan uygulamayı durdurmadan veritabanının tutarlı bir kopyasını üretir.</summary>
     public static void ExportTo(string path)

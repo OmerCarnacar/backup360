@@ -231,7 +231,7 @@ public static class BackupRunner
                 log.Write($"  değişmedi, atlandı: {name}");
                 return;
             }
-            var date = job.DateBy == "folder" ? last.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : today;
+            var date = !job.UseDateFolder ? null : job.DateBy == "folder" ? last.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : today;
             items.Add(new Item(name, paths, date, fingerprint, remotePath));
         }
     }
@@ -282,7 +282,7 @@ public static class BackupRunner
         var run = new ItemRun(job, work, baseFolder, stamp, null, log, items.Count * job.Targets.Count) { Warnings = warnings };
         foreach (var item in items)
         {
-            var dateFolder = $"{baseFolder}/{item.DateFolder}";
+            var dateFolder = item.DateFolder == null ? baseFolder : $"{baseFolder}/{item.DateFolder}";
             var itemOk = true;
             foreach (var target in job.Targets)
             {

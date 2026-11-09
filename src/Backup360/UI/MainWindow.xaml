@@ -22,6 +22,7 @@
                 <ui:NavigationViewItemHeader Text="YEDEKLEME" />
                 <ui:NavigationViewItem Content="Klasör Yedekleme" Icon="{ui:SymbolIcon FolderArrowUp24}" TargetPageType="{x:Type p:FolderBackupPage}" />
                 <ui:NavigationViewItem Content="SQL Yedekleme" Icon="{ui:SymbolIcon Database24}" TargetPageType="{x:Type p:SqlBackupPage}" />
+                <ui:NavigationViewItem Content="Geri Yükle" Icon="{ui:SymbolIcon ArrowUndo24}" TargetPageType="{x:Type p:RestorePage}" />
                 <ui:NavigationViewItemHeader Text="EŞİTLEME" />
                 <ui:NavigationViewItem Content="Klasör Eşitleme" Icon="{ui:SymbolIcon FolderSync24}" TargetPageType="{x:Type p:FolderSyncPage}" />
                 <ui:NavigationViewItem Content="SQL Eşitleme" Icon="{ui:SymbolIcon DatabaseArrowRight20}" TargetPageType="{x:Type p:SqlSyncPage}" />

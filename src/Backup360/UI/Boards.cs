@@ -88,7 +88,15 @@ public abstract class BoardPage : Page
 
     protected abstract Task ReloadAsync();
     protected Window OwnerWindow => Ui.Owner(this);
-    protected static string LastTime(RunRecord? last) => last == null ? "" : $"  ·  {last.Started[5..16]}";
+    protected static string LastTime(RunRecord? last) => last == null ? "" : $"  ·  {last.Started[8..10]}.{last.Started[5..7]} {last.Started[11..16]}";
+
+    private static readonly System.Globalization.CultureInfo Turkish = new("tr-TR");
+
+    protected static DayRowVm[] DayRows(string kind, long id) => Db.Days(kind, id).Select(d =>
+    {
+        var (status, brush) = Fmt.Status(d.Status);
+        return new DayRowVm(d.Day.ToString("dd.MM.yyyy ddd", Turkish), d.LastTime, d.Count.ToString(), d.Bytes > 0 ? Fmt.Size(d.Bytes) : "—", status, brush);
+    }).ToArray();
 }
 
 public abstract class JobsPageBase : BoardPage
@@ -140,7 +148,7 @@ public abstract class JobsPageBase : BoardPage
             var (status, color) = Fmt.Status(last?.Status);
             var (icon, accent) = Look(j);
             var uncompressed = j.Mode is "mirror" or "sync" || (j.Mode == "dated" && j.DatedOutput == "folder");
-            var kind = j.Mode == "database" ? EngineNames[j.DbEngine] : ModeNames.GetValueOrDefault(j.Mode, j.Mode);
+            var kind = j.Mode == "database" ? EngineNames[j.DbEngine] : j.Mode == "dated" && !j.UseDateFolder ? "Alt klasörler ayrı" : ModeNames.GetValueOrDefault(j.Mode, j.Mode);
             var source = j.Mode == "sync" && j.SyncFromJob != 0
                 ? "Yedek işi: " + (Db.GetJob(j.SyncFromJob)?.Name ?? "bulunamadı")
                 : j.Mode == "database"
@@ -158,7 +166,7 @@ public abstract class JobsPageBase : BoardPage
                     : new CardAction("Süre hesapla", WUI.SymbolRegular.Timer24, new RelayCommand(() => Ui.Guard(() => EstimateAsync(j)))),
                 new CardAction("Sil", WUI.SymbolRegular.Delete24, new RelayCommand(() => Ui.Guard(() => DeleteAsync(j))), true),
             };
-            return (Group: j.Group, Card: new CardVm(icon, accent, j.Name, source ?? "", chips.ToArray(), status, color, j.Schedule.Describe() + LastTime(last), actions) { Live = LiveFor("job", j.Id), Logo = j.Mode == "database" ? Brand.ForDb(j.DbEngine) : null });
+            return (Group: j.Group, Card: new CardVm(icon, accent, j.Name, source ?? "", chips.ToArray(), status, color, j.Schedule.Describe() + LastTime(last), actions) { Live = LiveFor("job", j.Id), Logo = j.Mode == "database" ? Brand.ForDb(j.DbEngine) : null, Days = DayRows("job", j.Id) });
         }).ToList();
 
         Board.SetGroups(cards.GroupBy(c => c.Group, c => c.Card, StringComparer.OrdinalIgnoreCase),

@@ -21,7 +21,7 @@ public partial class HistoryPage
         {
             var (text, brush) = Fmt.Status(r.Status);
             var seconds = Fmt.RunSeconds(r);
-            return new HistoryRow(r.Started, r.Ended == null ? "" : Fmt.Duration((long)seconds), r.Kind switch { "job" => "Yedek", "audit" => "Denetim", "guard" => "Koruma", _ => "Taşıma" }, r.Name, text, brush,
+            return new HistoryRow(r.Started, r.Ended == null ? "" : Fmt.Duration((long)seconds), r.Kind switch { "job" => "Yedek", "audit" => "Denetim", "guard" => "Koruma", "restore" => "Geri yükleme", _ => "Taşıma" }, r.Name, text, brush,
                 r.Bytes > 0 ? Fmt.Size(r.Bytes) : "", r.Bytes > 0 && seconds > 0 ? $"{Fmt.Size(r.Bytes / seconds)}/sn" : "", r.Detail);
         }).ToList();
     }

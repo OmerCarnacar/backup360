@@ -307,8 +307,11 @@ public static class Cloud
         return map;
     }
 
-    public static Task DownloadFileAsync(string target, string folder, string path, string local, CancellationToken ct) =>
-        RunTransferAsync(Args("copyto", Join(target, folder, path), local), null, null, ct);
+    public static Task DownloadFileAsync(string target, string folder, string path, string local, CancellationToken ct, Action<TransferStats>? stats = null) =>
+        RunTransferAsync(Args("copyto", Join(target, folder, path), local), null, stats, ct);
+
+    public static Task DownloadFolderAsync(string target, string folder, string local, CancellationToken ct, Action<TransferStats>? stats = null) =>
+        RunTransferAsync(Args("copy", Join(target, folder), local), null, stats, ct);
 
     /// <summary>Hazır komutu aktarım ayarları ve canlı istatistikle çalıştırır.</summary>
     public static async Task RunTransferAsync(List<string> args, Action<string>? log, Action<TransferStats>? stats, CancellationToken ct)

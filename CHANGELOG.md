@@ -1,4 +1,11 @@
-## Yeni sürüm
+## 2026.11.09.1658
+
+### Eklendi
+- **Geri Yükle:** Tüm arşiv biçimleri, klasör yedekleri ve SQL Server, MySQL, PostgreSQL, Firebird, SQLite. Yedek önce doğrulanır, dosyalar yeni klasöre, veritabanları yeni adla açılır; SQL Server fark ve günlük yedeklerinde gereken zincir otomatik kurulur
+- **Kartlarda gün bazlı özet:** Son 5 günün tarihi, saati, yedek adedi, boyutu ve durumu
+- **Alt klasörleri ayrı gönderme:** Klasörün içindeki klasörler sırayla, ayrı arşiv ya da olduğu gibi gönderilir
+
+## 2026.11.09.1611
 
 ### Eklendi
 - **PostgreSQL ve Firebird** yedekleme

@@ -65,6 +65,16 @@ public static class PostgresEngine
         if (code != 0 || !text.Contains("TOC", StringComparison.OrdinalIgnoreCase)) throw new BackupCorruptException($"PostgreSQL yedeği okunamadı: {ClientTools.Last(text)}");
     }
 
+    public static async Task RestoreAsNewAsync(Job j, string dump, string newName, CancellationToken ct)
+    {
+        if ((await ListAsync(j, ct)).Contains(newName, StringComparer.OrdinalIgnoreCase)) throw new ArgumentException($"{newName} adında veritabanı zaten var; üzerine yazılmaz.");
+        await RunAsync(j, "psql.exe", Conn(j, "-d", "postgres", "-c", $"CREATE DATABASE \"{newName}\""), "Veritabanı oluşturulamadı", ct);
+        var (code, text) = await Proc.RunAsync(Bin("pg_restore.exe"), Conn(j, "-d", newName, "--no-owner", "--no-privileges", "--exit-on-error", dump), null, ct, null, Env(j));
+        if (code == 0) return;
+        await Proc.RunAsync(Bin("psql.exe"), Conn(j, "-d", "postgres", "-c", $"DROP DATABASE IF EXISTS \"{newName}\" WITH (FORCE)"), null, CancellationToken.None, null, Env(j));
+        throw new BackupCorruptException($"PostgreSQL yedeği geri yüklenemedi: {ClientTools.Last(text)}");
+    }
+
     /// <summary>Yedeği geçici veritabanına tamamen geri yükler; sonra siler.</summary>
     public static async Task RestoreTestAsync(Job j, string path, CancellationToken ct)
     {
@@ -105,6 +115,9 @@ public static class FirebirdEngine
         RunAsync(j, "gbak.exe", new[] { "-b", Conn(j, database), path }, "gbak hata verdi", ct);
 
     public static bool IsLocal(Job j) => j.DbServer is "localhost" or "127.0.0.1" || string.Equals(j.DbServer, Environment.MachineName, StringComparison.OrdinalIgnoreCase);
+
+    public static Task RestoreAsNewAsync(Job j, string backup, string newPath, CancellationToken ct) =>
+        RunAsync(j, "gbak.exe", new[] { "-c", backup, Conn(j, newPath) }, "Firebird geri yüklenemedi", ct);
 
     /// <summary>Yedeği geçici dosyaya geri yükler ve gfix ile tüm sayfaları doğrular.</summary>
     public static async Task RestoreTestAsync(Job j, string path, string work, CancellationToken ct)

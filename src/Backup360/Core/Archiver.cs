@@ -207,6 +207,45 @@ public static class Archiver
         return code == 1;
     }
 
+    /// <summary>Arşivi seçilen klasöre açar.</summary>
+    public static async Task ExtractAsync(FormatDef f, string path, string destination, string? password, CancellationToken ct, Action<int>? percent = null)
+    {
+        Directory.CreateDirectory(destination);
+        if (f.Engine == Engine.TarZstd)
+        {
+            await Task.Run(() =>
+            {
+                using var file = File.OpenRead(path);
+                using var zstd = new DecompressionStream(file);
+                TarFile.ExtractToDirectory(zstd, destination, overwriteFiles: false);
+            }, ct);
+            return;
+        }
+        if (f.Engine == Engine.Rar)
+        {
+            var (rarCode, rarText) = await Proc.RunAsync(Tools.Require(Tools.Rar(), "WinRAR"), new[] { "x", "-idq", "-y", password != null ? "-p" + password : "-p-", path, destination + "\\" }, null, ct);
+            if (rarCode != 0) throw new IOException($"Arşiv açılamadı (kod {rarCode}): {LastLines(rarText)}");
+            return;
+        }
+
+        async Task Open(string archive)
+        {
+            var args = new List<string> { "x", "-y", "-bsp1", "-sccUTF-8", "-o" + destination };
+            if (password != null && archive == path) args.Add("-p" + password);
+            args.Add(archive);
+            var (code, text) = await Proc.RunAsync(SevenZ, args, null, ct, percent);
+            if (code != 0) throw new IOException($"Arşiv açılamadı (kod {code}): {LastLines(text)}");
+        }
+
+        await Open(path);
+        if (f.Engine != Engine.TarThen7z) return;
+        foreach (var inner in Directory.GetFiles(destination, "*.tar"))
+        {
+            await Open(inner);
+            File.Delete(inner);
+        }
+    }
+
     /// <summary>Arşivin baştan sona okunabildiğini doğrular; bozuk arşiv buluta gönderilmez.</summary>
     public static async Task VerifyAsync(FormatDef f, string path, string? password, CancellationToken ct, Action<int>? percent = null)
     {

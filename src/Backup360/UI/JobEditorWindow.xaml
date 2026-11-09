@@ -30,6 +30,12 @@
 
                         <TextBlock Text="Nasıl gönderilsin?" Style="{StaticResource Section}" />
                         <RadioButton x:Name="FolderMode" GroupName="m" Content="Klasör bazlı: seçtiğim dosya ve klasörleri gönder" Checked="AnyChanged" />
+                        <StackPanel Margin="28,4,0,4">
+                            <CheckBox x:Name="EachFolder" Click="Each_Click">
+                                <TextBlock Text="Klasörün içindeki klasörleri sırayla tek tek gönder (sıkıştırma açıksa her biri ayrı arşiv olur, kapalıysa olduğu gibi gider)" TextWrapping="Wrap" />
+                            </CheckBox>
+                            <CheckBox x:Name="EachOnlyChanged" Content="Yalnızca değişen alt klasörleri gönder" Margin="28,4,0,0" />
+                        </StackPanel>
                         <CheckBox x:Name="MirrorDelete" Content="Eşitle: kaynakta silinenleri hedeften de kaldır (__silinenler klasöründe saklanır)" Margin="28,4,0,8" />
                         <RadioButton x:Name="DatedMode" GroupName="m" Content="Tarih bazlı: seçtiğim klasörün içindeki her klasörü tarih klasörüne gönder" Checked="AnyChanged" />
                         <StackPanel x:Name="DatedOptions" Margin="28,6,0,8">

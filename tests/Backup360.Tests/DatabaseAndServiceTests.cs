@@ -382,6 +382,44 @@ public class ServiceTests
     }
 
     [Fact]
+    public async Task Each_subfolder_becomes_its_own_archive_without_date_folder()
+    {
+        using var s = new Sandbox();
+        var root = Root(s, "Proje1", "Proje2", "Proje3");
+        File.WriteAllText(Path.Combine(root, "Proje2", "b.txt"), "ikinci");
+        var job = new Job { Name = "Projeler", Mode = "dated", UseDateFolder = false, DatedOutput = "archive", Sources = new() { root }, Formats = new() { "7z" }, Targets = new() { "gdrive" } };
+        Db.Save(job);
+        Assert.Equal("success", (await BackupRunner.RunAsync(job.Id, null, default)).Status);
+        var files = Files(s.Cloud1);
+        Assert.Equal(3, files.Length);
+        Assert.All(files, f => Assert.Matches(@"^Backup360/Projeler/Proje\d_\d{8}-\d{6}\.7z$", f));
+
+        var dest = Path.Combine(s.Root, "acik");
+        var (code, text) = await Proc.RunAsync(Tools.SevenZip()!, new[] { "x", "-y", "-o" + dest, Directory.GetFiles(s.Cloud1, "Proje2_*.7z", SearchOption.AllDirectories).Single() }, null, default);
+        Assert.True(code == 0, text);
+        Assert.Equal("ikinci", File.ReadAllText(Path.Combine(dest, "Proje2", "b.txt")));
+
+        await Task.Delay(1100);
+        File.AppendAllText(Path.Combine(root, "Proje3", "a.txt"), "degisti");
+        Assert.Equal("success", (await BackupRunner.RunAsync(job.Id, null, default)).Status);
+        var after = Files(s.Cloud1);
+        Assert.Equal(4, after.Length);
+        Assert.Equal(2, after.Count(f => f.Contains("/Proje3_")));
+    }
+
+    [Fact]
+    public async Task Each_subfolder_can_be_sent_uncompressed_in_turn()
+    {
+        using var s = new Sandbox();
+        var root = Root(s, "Proje1", "Proje2");
+        var job = new Job { Name = "Duz", Mode = "dated", UseDateFolder = false, DatedOutput = "folder", Sources = new() { root }, Targets = new() { "gdrive" } };
+        Db.Save(job);
+        var r = await BackupRunner.RunAsync(job.Id, null, default);
+        Assert.True(r.Status == "success", r.Detail);
+        Assert.Equal(new[] { "Backup360/Duz/Proje1/a.txt", "Backup360/Duz/Proje2/a.txt" }, Files(s.Cloud1));
+    }
+
+    [Fact]
     public async Task Days_filter_skips_old_folders()
     {
         using var s = new Sandbox();

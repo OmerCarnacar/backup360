@@ -255,6 +255,56 @@ public static class MsSql
         }
     }
 
+    /// <summary>Yedek zincirini yeni adla geri yükler ve DBCC CHECKDB ile doğrular.</summary>
+    public static async Task RestoreAsNewAsync(Job j, IReadOnlyList<string> files, string newName, Action<int>? percent, CancellationToken ct)
+    {
+        await using var c = await OpenAsync(j, ct);
+        string dataDir, logDir;
+        await using (var folders = new SqlCommand("SELECT CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS nvarchar(4000)), CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS nvarchar(4000))", c))
+        await using (var r = await folders.ExecuteReaderAsync(ct))
+        {
+            await r.ReadAsync(ct);
+            var fallback = Path.GetDirectoryName(files[0])!;
+            dataDir = r.IsDBNull(0) || r.GetString(0).Length == 0 ? fallback : r.GetString(0);
+            logDir = r.IsDBNull(1) || r.GetString(1).Length == 0 ? fallback : r.GetString(1);
+        }
+
+        var logical = new List<(string Name, string Type)>();
+        await using (var list = new SqlCommand("RESTORE FILELISTONLY FROM DISK = @p", c) { CommandTimeout = 0 })
+        {
+            list.Parameters.AddWithValue("@p", files[0]);
+            await using var r = await list.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct)) logical.Add(((string)r["LogicalName"], (string)r["Type"]));
+        }
+
+        static string Str(string s) => "N'" + s.Replace("'", "''") + "'";
+        var stem = Cloud.SafeName(newName).Replace(' ', '_');
+        var moves = logical.Select((f, i) => $"MOVE {Str(f.Name)} TO {Str(f.Type == "L" ? Path.Combine(logDir, $"{stem}_{i}.ldf") : Path.Combine(dataDir, f.Type == "D" ? $"{stem}_{i}.mdf" : $"{stem}_{i}"))}");
+        var db = Quote(newName);
+        var completed = false;
+        try
+        {
+            for (var i = 0; i < files.Count; i++)
+            {
+                var isLog = files[i].EndsWith(".trn", StringComparison.OrdinalIgnoreCase);
+                var options = new List<string> { "CHECKSUM", "NORECOVERY" };
+                if (i == 0) options.AddRange(moves);
+                await RunWithProgressAsync(j, $"RESTORE {(isLog ? "LOG" : "DATABASE")} {db} FROM DISK = @p WITH {string.Join(", ", options)}", files[i], percent, ct);
+            }
+            await using (var finish = new SqlCommand($"RESTORE DATABASE {db} WITH RECOVERY", c) { CommandTimeout = 0 }) await finish.ExecuteNonQueryAsync(ct);
+            await using (var check = new SqlCommand($"DBCC CHECKDB ({db}) WITH NO_INFOMSGS, ALL_ERRORMSGS", c) { CommandTimeout = 0 }) await check.ExecuteNonQueryAsync(ct);
+            completed = true;
+        }
+        catch (SqlException e) when (BackupHealth.IsCorruption(e))
+        {
+            throw new BackupCorruptException($"Yedek bozuk, geri yüklenemedi: {e.Message}", e);
+        }
+        finally
+        {
+            if (!completed) await DropTempAsync(j, newName);
+        }
+    }
+
     /// <summary>Geçici veritabanını her durumda kaldırır; iptal edilse de sunucuda iz bırakmaz.</summary>
     private static async Task DropTempAsync(Job j, string temp)
     {
@@ -323,6 +373,31 @@ public static class MySqlEngine
                 .Where(n => !SystemDbs.Contains(n, StringComparer.OrdinalIgnoreCase)).OrderBy(n => n).ToList();
         }
         finally { Directory.Delete(work, true); }
+    }
+
+    /// <summary>Dökümü yeni veritabanı adına yönlendirip yükler.</summary>
+    public static async Task RestoreAsNewAsync(Job j, string dump, string newName, string work, CancellationToken ct)
+    {
+        if ((await ListAsync(j, ct)).Contains(newName, StringComparer.OrdinalIgnoreCase)) throw new ArgumentException($"{newName} adında veritabanı zaten var; üzerine yazılmaz.");
+        var rewritten = Path.Combine(work, "yonlendirilmis.sql");
+        using (var reader = new StreamReader(dump, new UTF8Encoding(false)))
+        await using (var writer = new StreamWriter(rewritten, false, new UTF8Encoding(false)))
+        {
+            string? line;
+            while ((line = await reader.ReadLineAsync(ct)) != null)
+            {
+                if (line.StartsWith("CREATE DATABASE", StringComparison.OrdinalIgnoreCase) || line.StartsWith("USE `", StringComparison.Ordinal))
+                    line = System.Text.RegularExpressions.Regex.Replace(line, "`[^`]+`", "`" + newName.Replace("`", "``") + "`");
+                await writer.WriteLineAsync(line);
+            }
+        }
+        var options = WriteOptions(j, work);
+        try
+        {
+            var (code, text) = await Proc.RunAsync(Bin("mysql.exe"), new[] { "--defaults-extra-file=" + options, "--default-character-set=utf8mb4", "-e", "source " + rewritten.Replace('\\', '/') }, null, ct);
+            if (code != 0) throw new IOException("MySQL geri yüklenemedi: " + text.Trim());
+        }
+        finally { File.Delete(options); }
     }
 
     public static async Task DumpAsync(Job j, string database, string path, string work, CancellationToken ct)

@@ -27,7 +27,10 @@ public partial class JobEditorWindow
         foreach (var g in Db.Jobs().Select(x => x.Group).Append("Genel").Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x)) GroupBox.Items.Add(g);
         GroupBox.Text = job.Group;
 
-        (job.Mode switch { "dated" => DatedMode, "database" => DbMode, _ => FolderMode }).IsChecked = true;
+        var eachFolder = job.Mode == "dated" && !job.UseDateFolder;
+        (eachFolder ? FolderMode : job.Mode switch { "dated" => DatedMode, "database" => DbMode, _ => FolderMode }).IsChecked = true;
+        EachFolder.IsChecked = eachFolder;
+        EachOnlyChanged.IsChecked = job.OnlyChanged;
         Compress.IsChecked = job.Mode is "archive" or "database" || (job.Mode == "dated" && job.DatedOutput == "archive");
         MirrorDelete.IsChecked = job.MirrorDelete;
         DateBy.SelectedIndex = job.DateBy == "folder" ? 1 : 0;
@@ -99,6 +102,11 @@ public partial class JobEditorWindow
         DbList.Children.Add(new CheckBox { Content = new TextBlock { Text = label }, Tag = name, IsChecked = check, Margin = new Thickness(0, 1, 0, 1) });
 
     private void AnyChanged(object sender, RoutedEventArgs e) => Sync();
+
+    private void Each_Click(object sender, RoutedEventArgs e)
+    {
+        Sync();
+    }
     private void AnySelection(object sender, SelectionChangedEventArgs e) => Sync();
 
     /// <summary>Motor değişince standart portu önerir; elle yazılmış farklı porta dokunmaz.</summary>
@@ -129,7 +137,10 @@ public partial class JobEditorWindow
         var db = DbMode.IsChecked == true;
         if (db) Compress.IsChecked = true;   // Veritabanı yedekleri her zaman arşivlenir.
         Compress.IsEnabled = !db;
-        MirrorDelete.IsEnabled = FolderMode.IsChecked == true && Compress.IsChecked != true;
+        MirrorDelete.IsEnabled = FolderMode.IsChecked == true && Compress.IsChecked != true && EachFolder.IsChecked != true;
+        if (FolderMode.IsChecked != true) EachFolder.IsChecked = false;
+        EachFolder.IsEnabled = FolderMode.IsChecked == true;
+        EachOnlyChanged.IsEnabled = EachFolder.IsChecked == true;
         DatedOptions.IsEnabled = DatedMode.IsChecked == true;
         CompressPanel.IsEnabled = Compress.IsChecked == true;
         Password.IsEnabled = UsePassword.IsChecked == true;
@@ -246,7 +257,10 @@ public partial class JobEditorWindow
             _job.MirrorDelete = MirrorDelete.IsChecked == true;
             _job.DateBy = DateBy.SelectedIndex == 1 ? "folder" : "run";
             _job.DaysFilter = (int)(DaysFilter.Value ?? 0);
-            _job.OnlyChanged = OnlyChanged.IsChecked == true;
+            var each = FolderMode.IsChecked == true && EachFolder.IsChecked == true;
+            if (each) (_job.Mode, _job.DatedOutput) = ("dated", Compress.IsChecked == true ? "archive" : "folder");
+            _job.UseDateFolder = !each;
+            _job.OnlyChanged = each ? EachOnlyChanged.IsChecked == true : OnlyChanged.IsChecked == true;
             _job.Sources = Sources.Items.Cast<string>().ToList();
             _job.Excludes = Excludes.Text.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
             _job.Formats = Formats.Children.OfType<CheckBox>().Where(c => c.IsChecked == true).Select(c => (string)c.Tag).ToList();

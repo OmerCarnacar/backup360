@@ -18,6 +18,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -70,7 +71,41 @@
                         </ItemsControl>
                     </Grid>
 
-                    <StackPanel Grid.Row="3" Grid.ColumnSpan="3" Margin="0,12,0,0" Visibility="{Binding Live.Visibility}">
+                    <Border Grid.Row="3" Grid.ColumnSpan="3" Margin="0,12,0,0" BorderThickness="1,1,1,0" BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" Visibility="{Binding DaysVisibility}">
+                        <StackPanel>
+                            <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" Background="{DynamicResource ControlFillColorSecondaryBrush}" Padding="8,4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="42" /><ColumnDefinition Width="38" /><ColumnDefinition Width="66" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Yedek günü" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="1" Text="Saat" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="2" Text="Adet" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="3" Text="Boyut" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="4" Text="Durum" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </Grid>
+                            </Border>
+                            <ItemsControl ItemsSource="{Binding Days}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" Padding="8,4">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="42" /><ColumnDefinition Width="38" /><ColumnDefinition Width="66" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Day}" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Time}" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Count}" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <TextBlock Grid.Column="3" Text="{Binding Size}" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <StackPanel Grid.Column="4" Orientation="Horizontal">
+                                                    <Ellipse Width="7" Height="7" Fill="{Binding StatusBrush}" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Status}" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Row="4" Grid.ColumnSpan="3" Margin="0,12,0,0" Visibility="{Binding Live.Visibility}">
                         <Grid>
                             <TextBlock Text="{Binding Live.Stage}" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <TextBlock Text="{Binding Live.PercentText}" FontWeight="SemiBold" FontSize="15" HorizontalAlignment="Right" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
