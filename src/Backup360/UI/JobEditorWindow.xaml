@@ -1,0 +1,148 @@
+<ui:FluentWindow x:Class="Backup360.UI.JobEditorWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Width="860" Height="760" MinHeight="600" WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar x:Name="Bar" ShowMaximize="False" ShowMinimize="False" />
+
+        <TabControl x:Name="Tabs" Grid.Row="1" Margin="16,0,16,0">
+            <TabItem Header="Gönderim">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="8,14,18,14">
+                        <TextBlock Text="İş adı" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                            <ui:TextBox x:Name="NameBox" />
+                            <ComboBox x:Name="GroupBox" Grid.Column="2" IsEditable="True" ToolTip="Grup" />
+                        </Grid>
+
+                        <StackPanel x:Name="ModeArea">
+                        <ui:Card Margin="0,16,0,0" Padding="16">
+                            <ui:ToggleSwitch x:Name="Compress" Content="Sıkıştırarak gönder (kapalıysa dosya ve klasörler olduğu gibi gönderilir)" Checked="AnyChanged" Unchecked="AnyChanged" />
+                        </ui:Card>
+
+                        <TextBlock Text="Nasıl gönderilsin?" Style="{StaticResource Section}" />
+                        <RadioButton x:Name="FolderMode" GroupName="m" Content="Klasör bazlı: seçtiğim dosya ve klasörleri gönder" Checked="AnyChanged" />
+                        <CheckBox x:Name="MirrorDelete" Content="Eşitle: kaynakta silinenleri hedeften de kaldır (__silinenler klasöründe saklanır)" Margin="28,4,0,8" />
+                        <RadioButton x:Name="DatedMode" GroupName="m" Content="Tarih bazlı: seçtiğim klasörün içindeki her klasörü tarih klasörüne gönder" Checked="AnyChanged" />
+                        <StackPanel x:Name="DatedOptions" Margin="28,6,0,8">
+                            <TextBlock Text="Hedefte yapı: İş adı / 2026-11-09 / Klasör / Alt klasörler" Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,6" />
+                            <StackPanel Orientation="Horizontal">
+                                <StackPanel Margin="0,0,18,0">
+                                    <TextBlock Text="Tarih klasörü" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                    <ComboBox x:Name="DateBy" Width="280"><ComboBoxItem Content="Gönderim tarihi" /><ComboBoxItem Content="Klasörün son değişiklik tarihi" /></ComboBox>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Son kaç günde değişenler (0 = hepsi)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                    <ui:NumberBox x:Name="DaysFilter" Minimum="0" Maximum="36500" Width="160" HorizontalAlignment="Left" />
+                                </StackPanel>
+                            </StackPanel>
+                            <CheckBox x:Name="OnlyChanged" Content="Yalnızca son gönderimden sonra değişen klasörleri gönder" Margin="0,8,0,0" />
+                        </StackPanel>
+                        <RadioButton x:Name="DbMode" GroupName="m" Content="Veritabanı yedeği: SQL Server (Always On dahil), MySQL/MariaDB, SQLite" Checked="AnyChanged" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem x:Name="SourcesTab" Header="Kaynaklar">
+                <StackPanel Margin="8,14,18,14">
+                    <TextBlock Text="Dosyalar, klasörler, USB ve ağ alanları" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                    <ListBox x:Name="Sources" Height="300" SelectionMode="Extended" />
+                    <WrapPanel Margin="0,10,0,0">
+                        <ui:Button Content="Dosya ekle" Icon="{ui:SymbolIcon DocumentAdd24}" Margin="0,0,8,0" Click="AddFiles_Click" />
+                        <ui:Button Content="Klasör ekle" Icon="{ui:SymbolIcon FolderAdd24}" Margin="0,0,8,0" Click="AddFolders_Click" />
+                        <ui:Button Content="Ağ yolu ekle" Icon="{ui:SymbolIcon Server24}" Margin="0,0,8,0" Click="AddNetwork_Click" />
+                        <ui:Button Content="Kaldır" Icon="{ui:SymbolIcon Delete24}" Click="RemoveSource_Click" />
+                    </WrapPanel>
+                    <TextBlock Text="Hariç tutulacaklar (noktalı virgülle, örn: *.tmp;node_modules)" Style="{StaticResource FieldLabel}" />
+                    <ui:TextBox x:Name="Excludes" />
+                </StackPanel>
+            </TabItem>
+
+            <TabItem x:Name="CompressTab" Header="Sıkıştırma">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="CompressPanel" Margin="8,14,18,14">
+                        <TextBlock Text="Formatlar (birden çok seçilebilir, her biri ayrı dosya olur)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                        <UniformGrid x:Name="Formats" Columns="2" />
+                        <TextBlock x:Name="LevelText" Style="{StaticResource FieldLabel}" />
+                        <Slider x:Name="Level" Minimum="1" Maximum="9" IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight" ValueChanged="Level_Changed" />
+                        <CheckBox x:Name="UsePassword" Content="Arşivi parola ile şifrele (7z, zip, rar)" Margin="0,16,0,8" Checked="AnyChanged" Unchecked="AnyChanged" />
+                        <ui:PasswordBox x:Name="Password" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Hedef ve zamanlama">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="8,14,18,14">
+                        <TextBlock Text="Hedefler" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                        <StackPanel x:Name="Targets" />
+                        <TextBlock x:Name="NoTargets" Text="Henüz hedef yok. Önce Hedefler sayfasından bir hedef tanımlayın." Foreground="#F87171" Visibility="Collapsed" />
+                        <TextBlock Text="Hedefteki ana klasör" Style="{StaticResource FieldLabel}" />
+                        <ui:TextBox x:Name="Folder" />
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                            <StackPanel><TextBlock Text="Saklanacak yedek sayısı (0 = hepsi)" Style="{StaticResource FieldLabel}" /><ui:NumberBox x:Name="Keep" Minimum="0" Maximum="9999" /></StackPanel>
+                            <StackPanel Grid.Column="2"><TextBlock Text="Şu kadar günden eskileri sil (0 = silme)" Style="{StaticResource FieldLabel}" /><ui:NumberBox x:Name="KeepDays" Minimum="0" Maximum="36500" /></StackPanel>
+                        </Grid>
+                        <TextBlock Text="Her öğenin en yeni yedeği her zaman kalır." Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,0" />
+                        <TextBlock Text="Zamanlama" Style="{StaticResource Section}" />
+                        <ContentControl x:Name="ScheduleHost" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem x:Name="DatabaseTab" Header="Veritabanı">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="DbPanel" Margin="8,14,18,14">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="12" /><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition Width="150" /></Grid.ColumnDefinitions>
+                            <StackPanel><TextBlock Text="Motor" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" /><ComboBox x:Name="DbEngine" SelectionChanged="AnySelection"><ComboBoxItem Content="SQL Server" /><ComboBoxItem Content="MySQL / MariaDB" /><ComboBoxItem Content="SQLite" /></ComboBox></StackPanel>
+                            <StackPanel Grid.Column="2"><TextBlock Text="Sunucu veya Always On dinleyicisi" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" /><ui:TextBox x:Name="DbServer" /></StackPanel>
+                            <StackPanel Grid.Column="4"><TextBlock Text="Port (0 = varsayılan)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" /><ui:NumberBox x:Name="DbPort" Minimum="0" Maximum="65535" /></StackPanel>
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="12" /><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                            <StackPanel><TextBlock Text="Kimlik doğrulama" Style="{StaticResource FieldLabel}" /><ComboBox x:Name="DbAuth" SelectionChanged="AnySelection"><ComboBoxItem Content="Windows" /><ComboBoxItem Content="Kullanıcı ve parola" /></ComboBox></StackPanel>
+                            <StackPanel Grid.Column="2"><TextBlock Text="Kullanıcı" Style="{StaticResource FieldLabel}" /><ui:TextBox x:Name="DbUser" /></StackPanel>
+                            <StackPanel Grid.Column="4"><TextBlock Text="Parola" Style="{StaticResource FieldLabel}" /><ui:PasswordBox x:Name="DbPassword" /></StackPanel>
+                        </Grid>
+                        <CheckBox x:Name="DbAll" Content="Tüm kullanıcı veritabanları (yeni eklenenler otomatik dahil)" Margin="0,14,0,6" Checked="AnyChanged" Unchecked="AnyChanged" />
+                        <Border BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" CornerRadius="6" Height="108">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel x:Name="DbList" Margin="8,4" /></ScrollViewer>
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <ui:Button Content="Bağlan ve listele" Icon="{ui:SymbolIcon PlugConnected24}" Margin="0,0,8,0" Click="LoadDatabases_Click" />
+                            <ui:Button Content="SQLite dosyası ekle" Icon="{ui:SymbolIcon DocumentAdd24}" Click="AddSqlite_Click" />
+                            <TextBlock x:Name="DbMessage" VerticalAlignment="Center" Margin="12,0,0,0" Style="{StaticResource Muted}" />
+                        </StackPanel>
+                        <StackPanel x:Name="SqlOptions">
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <StackPanel Margin="0,0,18,0"><TextBlock Text="Yedek türü" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" /><ComboBox x:Name="DbType" Width="200" SelectionChanged="AnySelection"><ComboBoxItem Content="Tam (Full)" /><ComboBoxItem Content="Fark (Differential)" /><ComboBoxItem Content="Günlük (Log)" /></ComboBox></StackPanel>
+                                <CheckBox x:Name="DbCopyOnly" Content="Tam yedek COPY__ONLY olsun (mevcut yedek planınızı bozmaz)" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+                            </StackPanel>
+                            <TextBlock Text="Yedek klasörü (SQL Server'ın yazabildiği; uzak sunucuda UNC yolu. Boşsa sunucu varsayılanı)" Style="{StaticResource FieldLabel}" />
+                            <ui:TextBox x:Name="DbDir" />
+                            <TextBlock Text="Always On yedek replikası" Style="{StaticResource FieldLabel}" />
+                            <ComboBox x:Name="DbAg"><ComboBoxItem Content="SQL Server'daki yedek tercihine uy (önerilen)" /><ComboBoxItem Content="Bağlandığım replikadan her zaman al" /></ComboBox>
+                            <CheckBox x:Name="DbSubnet" Content="Always On dinleyicisine bağlan (MultiSubnetFailover)" Margin="0,10,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="20,10,20,16">
+            <ui:Button Content="Vazgeç" MinWidth="100" Margin="0,0,8,0" IsCancel="True" />
+            <ui:Button Content="Kaydet" Icon="{ui:SymbolIcon Save24}" Appearance="Primary" MinWidth="120" Click="Save_Click" />
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

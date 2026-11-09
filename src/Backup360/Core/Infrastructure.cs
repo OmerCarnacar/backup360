@@ -79,6 +79,9 @@ public static class Proc
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             RedirectStandardInput = pipeIn,
+            // Araçlar UTF-8 yazar; varsayılan konsol kodlaması Türkçe dosya adlarını bozar.
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
         return Process.Start(psi) ?? throw new InvalidOperationException($"{Path.GetFileName(exe)} başlatılamadı.");
@@ -117,6 +120,19 @@ public static class Proc
             }
         }
         Flush();
+    }
+
+    /// <summary>Standart çıktı ve hatayı ayrı toplar: JSON gibi makine çıktılarına uyarı satırları karışmaz.</summary>
+    public static async Task<(int Code, string Out, string Err)> CaptureAsync(string exe, IEnumerable<string> args, CancellationToken ct)
+    {
+        using var p = Start(exe, args);
+        using var reg = ct.Register(() => TryKill(p));
+        var stdout = p.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var stderr = p.StandardError.ReadToEndAsync(CancellationToken.None);
+        await Task.WhenAll(stdout, stderr);
+        await p.WaitForExitAsync(CancellationToken.None);
+        ct.ThrowIfCancellationRequested();
+        return (p.ExitCode, await stdout, await stderr);
     }
 
     /// <summary>Komutu çalıştırır, çıktısını satır satır toplar. İptalde süreci öldürür.</summary>
@@ -196,6 +212,7 @@ public sealed class LiveState
     public int Steps { get; set; }
     public string Started { get; set; } = "";
     public List<string> Log { get; set; } = new();
+    public List<string> Transfers { get; set; } = new();
     public string Key => $"{Kind}-{RefId}";
 }
 
@@ -259,7 +276,7 @@ public sealed class RunLog : IDisposable
             {
                 _live.Log.Add(line[11..]);
                 if (_live.Log.Count > 60) _live.Log.RemoveAt(0);
-                Flush(force: true);
+                Flush(force: false);   // Çok dosyalı aktarımda diski yormasın
             }
         }
         _ui?.Invoke(line);

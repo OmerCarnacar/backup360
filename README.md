@@ -21,7 +21,8 @@ _Tüm arşiv formatları · SQL Server, Always On, MySQL, SQLite · Zamanlama ·
 ## Ekran görüntüleri
 
 <img src="docs/img/login.png" alt="Giriş ekranı" width="49%"> <img src="docs/img/pano.png" alt="Canlı pano" width="49%">
-<img src="docs/img/isler.png" alt="Gruplu iş listesi" width="49%"> <img src="docs/img/is-gonderim.png" alt="Gönderim ayarı" width="49%">
+<img src="docs/img/isler.png" alt="Canlı ilerlemeli iş kartları" width="49%"> <img src="docs/img/is-gonderim.png" alt="Gönderim ayarı" width="49%">
+<img src="docs/img/hedefler.png" alt="Hedefler" width="49%"> <img src="docs/img/gezgin.png" alt="Bulut Gezgini" width="49%">
 
 ## Özellikler
 
@@ -34,7 +35,11 @@ _Tüm arşiv formatları · SQL Server, Always On, MySQL, SQLite · Zamanlama ·
 | 📁 **Çoklu kaynak** | Dosyalar, klasörler, USB ve `\\SUNUCU\Paylasim` ağ alanları tek işte toplanabilir. |
 | 📅 **Tarih bazlı gönderim** | Seçilen klasörün içindeki her klasör, sıkıştırılmış veya klasör olarak `2026-11-09/` gibi tarih klasörüne gönderilir. |
 | 🗓️ **Gün sayısına göre** | Yalnızca son N günde değişen klasörleri gönderin, N günden eski yedekleri otomatik silin. Her öğenin en yeni yedeği korunur. |
-| 🔄 **Klasör eşitleme** | Sıkıştırmadan, birebir aynı yapıyla. Kaynakta silinenler hedefte `_silinenler` altında saklanır. |
+| 📂 **Klasör bazlı (varsayılan)** | Dosya ve klasörler olduğu gibi, aynı yapıyla gönderilir. "Sıkıştırarak gönder" seçilirse arşivlenir. |
+| 🔄 **Klasör ve SQL eşitleme** | Yedekleri başka klasöre, NAS'a veya farklı PC'ye yalnızca farkları aktararak eşitler. "Farkları göster" ile önce görebilirsiniz. |
+| 🗂️ **Bulut Gezgini** | Bağlı hedeflerin içeriğini gezin, dosya ve klasör indirin. |
+| 💽 **Disk olarak bağlama** | Hedefi `Z:` gibi bir sürücü harfiyle bağlayın (WinFsp gerekir). |
+| 📈 **Anlık takip** | Sıkıştırma ve yükleme yüzdesi, o anki işlem, dosya dosya akış ve Canlı Günlük. |
 | 🗂️ **Gruplar** | İşleri ve kuralları gruplayın, bir grubu tek tıkla sırayla çalıştırın. |
 | ⏰ **Zamanlama** | Dakika, saat, gün veya hafta bazlı. Uygulama kapalıyken de çalışır, kaçırılan görev bilgisayar açılınca yapılır. |
 | 🚚 **Klasör taşıma** | Bir klasöre yeni gelen dosyaları bulup diğer klasöre taşır. Yazılmakta olan ve açık dosyaları bekler. |
@@ -50,14 +55,16 @@ _Tüm arşiv formatları · SQL Server, Always On, MySQL, SQLite · Zamanlama ·
 
 1. **[Son sürümden](https://github.com/OmerCarnacar/backup360/releases/latest)** `Backup360-Setup-….exe` dosyasını indirip çalıştırın. Yönetici izni gerekmez; Python, .NET veya başka bir program kurmanız gerekmez.
 2. Açılışta hesabınızı oluşturun.
-3. **Hedefler** sayfasından **Google Drive bağla** düğmesine basın ve tarayıcıda hesabınızı onaylayın.
+3. **Hedefler** sayfasından **Yeni hedef tanımla** ile Google Drive ekleyin ([kendi Client ID'niz](#google-client-id) ile) ve tarayıcıda hesabınızı onaylayın. SFTP, FTP, WebDAV, SMB ve S3 için şifre veya anahtar girebilirsiniz.
 4. **Yedekleme İşleri** sayfasından **Yeni iş** oluşturun.
 
 Kurulum istemiyorsanız `Backup360-Portable-….zip` dosyasını açıp `Backup360.exe` dosyasını çalıştırın.
 
 ## Bilmeniz gerekenler
 
-- **Google Drive izni:** Uygulama `drive.file` kapsamıyla bağlanır; yalnızca kendi yüklediği dosyaları görür, Drive'daki diğer dosyalarınıza erişemez.
+- **Google Drive izni:** Varsayılan `drive.file` kapsamında uygulama yalnızca kendi yüklediği dosyaları görür. Tüm Drive'ı Gezgin'de görmek için hedef tanımlarken "tüm dosyalara eriş" seçeneğini işaretleyin.
+- **Disk olarak bağlama:** Windows'a ücretsiz [WinFsp](https://winfsp.dev/rel/) kurulu olmalıdır. Bağlantı uygulama açıkken sürer.
+- **Eşitleme farkı dosya düzeyindedir:** Değişen dosyanın tamamı yeniden kopyalanır.
 - **SQL Server yedek klasörü:** SQL Server servis hesabının yazabildiği, uygulamanın da okuyabildiği bir klasör olmalıdır. Uzak sunucuda ortak bir ağ yolu (UNC) kullanın.
 - **Always On:** Tercih edilen replikaya göre yedek almak için işi her replikada kurun. İkincil replikada Differential yedek alınamaz; SQL Server bunu desteklemez.
 - **Yedek zinciri:** Log yedekleri günlük zincirini etkiler. Başka bir yedekleme aracı kullanıyorsanız yalnızca COPY_ONLY tam yedek alın.
@@ -68,6 +75,16 @@ Kurulum istemiyorsanız `Backup360-Portable-….zip` dosyasını açıp `Backup3
 - **Başka bilgisayara taşıma:** İşler, kurallar ve hedefler taşınır. Parolalar Windows hesabına bağlı olduğundan yeni bilgisayarda yeniden girilir.
 - **Bulut oturum bilgileri** `data\rclone.conf` dosyasında durur; `data` klasörünü güvenli tutun.
 - **Parolayı unuttuysanız:** `Backup360.exe --reset-login` giriş hesaplarını sıfırlar, işleriniz korunur.
+
+## Google Client ID
+
+Google Drive için **kendi Client ID'niz gereklidir**. rclone'un ortak kimliği kota sınırına takılıyor ve kapatılıyor; ücretsiz ve birkaç dakikalık bir işlemdir:
+
+1. [Google Cloud Console](https://console.cloud.google.com/)'da yeni bir proje açın.
+2. **APIs & Services → Library** bölümünden **Google Drive API**'yi etkinleştirin.
+3. **OAuth consent screen**'de **External** seçin, uygulamayı **In production** durumuna alın (test modunda oturum 7 günde düşer).
+4. **Credentials → Create Credentials → OAuth client ID** ile **Desktop app** oluşturun.
+5. Client ID ve Client Secret değerlerini **Yeni hedef tanımla** ekranına yapıştırın.
 
 ## Geliştirme
 

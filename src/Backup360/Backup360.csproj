@@ -3,13 +3,13 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+    <StartupObject>Backup360.Program</StartupObject>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Backup360</RootNamespace>
     <AssemblyName>Backup360</AssemblyName>
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <ApplicationIcon>..\..\assets\Backup360.ico</ApplicationIcon>
+        <ApplicationIcon>..\..\assets\Backup360.ico</ApplicationIcon>
     <BuildStamp Condition="'$(BuildStamp)' == ''">$([System.DateTime]::Now.ToString('yyyy.MM.dd.HHmm'))</BuildStamp>
     <BuildCode Condition="'$(BuildCode)' == ''">$([System.Guid]::NewGuid().ToString('N').Substring(0,8).ToUpperInvariant())</BuildCode>
     <Version>$(BuildStamp)</Version>
@@ -23,13 +23,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\..\assets\Backup360.ico" LogicalName="Backup360.ico" />
-    <EmbeddedResource Include="..\..\assets\logo.png" LogicalName="logo.png" />
+        <Resource Include="..\..\assets\logo.png" Link="Assets\logo.png" />
     <AssemblyMetadata Include="BuildCode" Value="$(BuildCode)" />
+    <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.1.0-dev-798" />
     <PackageReference Include="MailKit" Version="4.18.2" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.6" />
   </ItemGroup>
 

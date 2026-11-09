@@ -12,11 +12,61 @@ public sealed record Target(string Name, string Type)
         "onedrive" => "OneDrive",
         "dropbox" => "Dropbox",
         "alias" or "local" => "Yerel / ağ klasörü",
+        "s3" => "S3 uyumlu depolama",
+        "sftp" => "SFTP",
+        "ftp" => "FTP",
+        "webdav" => "WebDAV",
+        "smb" => "SMB ağ paylaşımı",
         _ => Type,
     };
 }
 
-public sealed record TransferStats(long Bytes, long Total, double Speed, long Eta, int Files, int FilesTotal, string? Current, int? CurrentPercent);
+/// <summary>Hedef tanımı. Auth: browser (tarayıcı), token (token/anahtar), password (şifre), none.</summary>
+public sealed class TargetDefinition
+{
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "drive";
+    public string Auth { get; set; } = "browser";
+    public string ClientId { get; set; } = "";
+    public string ClientSecret { get; set; } = "";
+    public string Token { get; set; } = "";
+    public string Host { get; set; } = "";
+    public int Port { get; set; }
+    public string Url { get; set; } = "";
+    public string User { get; set; } = "";
+    public string Password { get; set; } = "";
+    public bool Tls { get; set; }
+    public bool FullAccess { get; set; }
+    public string AccessKey { get; set; } = "";
+    public string SecretKey { get; set; } = "";
+    public string Endpoint { get; set; } = "";
+    public string Region { get; set; } = "";
+    public string Path { get; set; } = "";
+
+    public void Validate()
+    {
+        void Need(string value, string label) { if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException($"{label} boş olamaz."); }
+        Need(Name, "Hedef adı");
+        switch (Type)
+        {
+            case "s3": Need(AccessKey, "Access Key"); Need(SecretKey, "Secret Key"); break;
+            case "sftp" or "ftp" or "smb": Need(Host, "Sunucu"); Need(User, "Kullanıcı"); Need(Password, "Şifre"); break;
+            case "webdav":
+                Need(Url, "Adres");
+                if (Auth == "password") { Need(User, "Kullanıcı"); Need(Password, "Şifre"); }
+                else Need(Token, "Token");
+                break;
+            case "alias": Need(Path, "Klasör"); break;
+            default:
+                if (Auth == "token") Need(Token, "Token");
+                break;
+        }
+        if (!string.IsNullOrWhiteSpace(ClientId) != !string.IsNullOrWhiteSpace(ClientSecret))
+            throw new ArgumentException("Client ID ve Client Secret birlikte girilmelidir.");
+    }
+}
+
+public sealed record TransferStats(long Bytes, long Total, double Speed, long Eta, int Files, int FilesTotal, string? Current, int? CurrentPercent, string[] Active);
 
 /// <summary>Bulut ve klasör hedeflerine erişim rclone ile yapılır; ayarlar data klasöründe durur.</summary>
 public static class Cloud
@@ -25,8 +75,19 @@ public static class Cloud
 
     private static List<string> Args(params string[] args) => new(args) { "--config", AppPaths.RcloneConfig };
 
-    private static string Tail(string text) =>
-        string.Join(" | ", text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).TakeLast(3));
+    /// <summary>Sağlayıcı hatalarını kullanıcının ne yapacağını söyleyen metne çevirir.</summary>
+    public static string Explain(string text)
+    {
+        if (text.Contains("rateLimitExceeded", StringComparison.OrdinalIgnoreCase) || text.Contains("RATE_LIMIT_EXCEEDED", StringComparison.OrdinalIgnoreCase))
+            return "Google kota sınırı aşıldı. Hedefi kaldırıp kendi Google Client ID'nizle yeniden tanımlayın.";
+        if (text.Contains("storageQuotaExceeded", StringComparison.OrdinalIgnoreCase))
+            return "Hedefin depolama alanı dolu.";
+        if (text.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase))
+            return "Hesap oturumu geçersiz. Hedefi kaldırıp yeniden tanımlayın.";
+        return string.Join(" | ", text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).TakeLast(3));
+    }
+
+    private static string Tail(string text) => Explain(text);
 
     private static async Task Must(List<string> args, string error, CancellationToken ct)
     {
@@ -38,7 +99,7 @@ public static class Cloud
     {
         var result = new List<Target>();
         if (!File.Exists(AppPaths.RcloneConfig) || Tools.Rclone() == null) return result;
-        var (code, text) = await Proc.RunAsync(Exe, Args("listremotes", "--long"), null, ct);
+        var (code, text, _) = await Proc.CaptureAsync(Exe, Args("listremotes", "--long"), ct);
         if (code != 0) return result;
         foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -58,19 +119,73 @@ public static class Cloud
     }
 
     /// <summary>
-    /// Tarayıcıda hesap onayı açar. Google Drive'da drive.file kapsamı kullanılır:
-    /// uygulama yalnızca kendi yüklediği dosyaları görür, Drive'daki diğer dosyalara erişemez.
+    /// Hedefi tanımlar. Google Drive'da drive.file kapsamı kullanılır: uygulama yalnızca kendi
+    /// yüklediği dosyaları görür. Şifreler rclone tarafından gizlenmiş biçimde saklanır.
     /// </summary>
-    public static async Task AddAccountAsync(string name, string type, CancellationToken ct)
+    public static async Task CreateTargetAsync(TargetDefinition d, CancellationToken ct, Action<string>? log = null)
     {
-        var args = Args("config", "create", name, type);
-        if (type == "drive") args.Add("scope=drive.file");
-        var (code, text) = await Proc.RunAsync(Exe, args, null, ct);
-        if (code != 0) throw new IOException("Hesap bağlanamadı: " + Tail(text));
+        d.Validate();
+        var name = CleanTargetName(d.Name);
+        if ((await ListTargetsAsync(ct)).Any(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException($"Bu adda bir hedef zaten var: {name}");
+
+        var args = Args("config", "create", name, d.Type);
+        void Set(string key, string? value) { if (!string.IsNullOrWhiteSpace(value)) args.Add($"{key}={value.Trim()}"); }
+
+        switch (d.Type)
+        {
+            case "drive":
+                Set("scope", d.FullAccess ? "drive" : "drive.file");
+                Set("client_id", d.ClientId);
+                Set("client_secret", d.ClientSecret);
+                break;
+            case "s3":
+                Set("provider", string.IsNullOrWhiteSpace(d.Endpoint) ? "AWS" : "Other");
+                Set("env_auth", "false");
+                Set("access_key_id", d.AccessKey);
+                Set("secret_access_key", d.SecretKey);
+                Set("endpoint", d.Endpoint);
+                Set("region", d.Region);
+                break;
+            case "sftp" or "ftp" or "smb":
+                Set("host", d.Host);
+                if (d.Port > 0) Set("port", d.Port.ToString(CultureInfo.InvariantCulture));
+                Set("user", d.User);
+                if (d.Type == "ftp" && d.Tls) Set("explicit_tls", "true");
+                break;
+            case "webdav":
+                Set("url", d.Url);
+                Set("vendor", "other");
+                if (d.Auth == "password") Set("user", d.User);
+                else Set("bearer_token", d.Token);
+                break;
+            case "alias":
+                Set("remote", d.Path);
+                break;
+        }
+
+        if (d.Auth == "password" && !string.IsNullOrEmpty(d.Password))
+        {
+            args.Add("pass=" + d.Password);
+            args.Add("--obscure");
+        }
+        if (d.Auth == "token" && d.Type is "drive" or "dropbox")
+        {
+            Set("token", d.Token);
+            Set("config_refresh_token", "false");
+        }
+        if (d.Auth != "browser") args.Add("--non-interactive");
+
+        var (code, text) = await Proc.RunAsync(Exe, args, log, ct);
+        if (code != 0) throw new IOException("Hedef tanımlanamadı: " + Tail(text));
     }
 
-    public static Task AddFolderAsync(string name, string path, CancellationToken ct) =>
-        Must(Args("config", "create", name, "alias", "remote=" + path), "Klasör hedefi eklenemedi", ct);
+    /// <summary>Hedefte klasör oluşturur; ara klasörler de oluşturulur.</summary>
+    public static Task CreateFolderAsync(string target, string path, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Klasör yolunu yazın.");
+        return Must(Args("mkdir", Join(target, path.Trim())), "Klasör oluşturulamadı", ct);
+    }
 
     public static Task RemoveTargetAsync(string name, CancellationToken ct = default) =>
         Must(Args("config", "delete", name), "Hedef silinemedi", ct);
@@ -93,26 +208,43 @@ public static class Cloud
             {
                 string? current = null;
                 int? percent = null;
+                var active = new List<string>();
                 if (s.TryGetProperty("transferring", out var list) && list.ValueKind == JsonValueKind.Array && list.GetArrayLength() > 0)
                 {
                     var first = list[0];
                     current = first.GetProperty("name").GetString();
                     if (first.TryGetProperty("percentage", out var p) && p.ValueKind == JsonValueKind.Number) percent = p.GetInt32();
+                    foreach (var item in list.EnumerateArray())
+                    {
+                        var pct = item.TryGetProperty("percentage", out var v) && v.ValueKind == JsonValueKind.Number ? $"%{v.GetInt32()}" : "";
+                        active.Add($"{pct,5}  {item.GetProperty("name").GetString()}");
+                    }
                 }
                 long Num(string key) => s.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number ? (long)v.GetDouble() : 0;
                 var eta = s.TryGetProperty("eta", out var e) && e.ValueKind == JsonValueKind.Number ? (long)e.GetDouble() : -1;
-                stats?.Invoke(new TransferStats(Num("bytes"), Num("totalBytes"), Num("speed"), eta, (int)Num("transfers"), (int)Num("totalTransfers"), current, percent));
+                stats?.Invoke(new TransferStats(Num("bytes"), Num("totalBytes"), Num("speed"), eta, (int)Num("transfers"), (int)Num("totalTransfers"), current, percent, active.ToArray()));
             }
             else if (root.TryGetProperty("level", out var level) && level.GetString() is "error" or "critical")
             {
                 log?.Invoke("  rclone: " + root.GetProperty("msg").GetString());
+            }
+            else if (root.TryGetProperty("object", out var obj) && obj.ValueKind == JsonValueKind.String && root.TryGetProperty("msg", out var message))
+            {
+                // Dosya dosya anlık aktarım kaydı
+                var text = message.GetString() ?? "";
+                var label = text.StartsWith("Copied (new)", StringComparison.Ordinal) ? "Yeni"
+                    : text.StartsWith("Copied (", StringComparison.Ordinal) || text.StartsWith("Updated", StringComparison.Ordinal) ? "Güncellendi"
+                    : text.StartsWith("Moved", StringComparison.Ordinal) ? "Taşındı"
+                    : text.StartsWith("Deleted", StringComparison.Ordinal) ? "Silindi"
+                    : null;
+                if (label != null) log?.Invoke($"  {label}: {obj.GetString()}");
             }
         }
         catch (JsonException) { }
     };
 
     private static void AddTransferFlags(List<string> args) =>
-        args.AddRange(new[] { "--retries", "5", "--low-level-retries", "20", "--drive-chunk-size", "64M", "--use-json-log", "--stats", "1s", "--log-level", "INFO" });
+        args.AddRange(new[] { "--retries", "3", "--low-level-retries", "6", "--drive-chunk-size", "64M", "--use-json-log", "--stats", "1s", "--log-level", "INFO" });
 
     /// <summary>Dosyayı yükler ve bulut kopyasını özet değeriyle karşılaştırır.</summary>
     public static async Task UploadAsync(string localFile, string target, string folder, Action<string>? log, Action<TransferStats>? stats, CancellationToken ct)
@@ -152,6 +284,40 @@ public static class Cloud
         if (code != 0) throw new IOException($"{target}: birebir gönderim başarısız (kod {code}): {Tail(text)}");
     }
 
+    /// <summary>Hazır komutu aktarım ayarları ve canlı istatistikle çalıştırır.</summary>
+    public static async Task RunTransferAsync(List<string> args, Action<string>? log, Action<TransferStats>? stats, CancellationToken ct)
+    {
+        AddTransferFlags(args);
+        var (code, text) = await Proc.RunAsync(Exe, args, StatsReader(stats, log), ct);
+        if (code != 0) throw new IOException($"Aktarım başarısız (kod {code}): {Tail(text)}");
+    }
+
+    /// <summary>Tek eşleşmeyi eşitler; yalnızca farklı dosyalar aktarılır.</summary>
+    public static async Task SyncAsync(SyncPair pair, bool delete, string backupRoot, string stamp, IEnumerable<string> excludes,
+        Action<string>? log, Action<TransferStats>? stats, CancellationToken ct)
+    {
+        var isFile = File.Exists(pair.Source);
+        var dest = $"{pair.Target}:{pair.Folder}";
+        var args = isFile ? Args("copyto", pair.Source, dest) : Args(delete ? "sync" : "copy", pair.Source, dest);
+        if (delete && !isFile)
+        {
+            args.Add("--backup-dir");
+            args.Add(Join(pair.Target, backupRoot, $"_silinenler/{stamp}"));
+        }
+        foreach (var x in excludes) { args.Add("--exclude"); args.Add(x); }
+        AddTransferFlags(args);
+        var (code, text) = await Proc.RunAsync(Exe, args, StatsReader(stats, log), ct);
+        if (code != 0) throw new IOException($"{pair.Target}: eşitleme başarısız (kod {code}): {Tail(text)}");
+    }
+
+    /// <summary>İki tarafı karşılaştırır. Fark bulununca rclone sıfırdan farklı kodla döner; bu hata değildir.</summary>
+    public static async Task<(int Code, string Output, string Error)> CheckAsync(SyncPair pair, IEnumerable<string> excludes, CancellationToken ct)
+    {
+        var args = Args("check", pair.Source, $"{pair.Target}:{pair.Folder}", "--combined", "-");
+        foreach (var x in excludes) { args.Add("--exclude"); args.Add(x); }
+        return await Proc.CaptureAsync(Exe, args, ct);
+    }
+
     /// <summary>
     /// Her öğe ve format için son N yedeği bırakır. Yalnızca Backup360'ın ad kalıbına uyan dosyalar
     /// silinir; "yalnızca değişenler" açıkken değişmeyen klasörün tek yedeği de böylece korunur.
@@ -161,8 +327,8 @@ public static class Cloud
         if (keep <= 0 && keepDays <= 0) return 0;
         var cutoff = keepDays > 0 ? DateTime.Now.AddDays(-keepDays) : DateTime.MinValue;
         bool Old(string stamp) => DateTime.ParseExact(stamp, "yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) < cutoff;
-        var (code, text) = await Proc.RunAsync(Exe, Args("lsjson", Join(target, folder), "--files-only", "-R"), null, ct);
-        if (code != 0) throw new IOException($"{target}: eski yedekler listelenemedi: {Tail(text)}");
+        var (code, text, err) = await Proc.CaptureAsync(Exe, Args("lsjson", Join(target, folder), "--files-only", "-R"), ct);
+        if (code != 0) throw new IOException($"{target}: eski yedekler listelenemedi: {Tail(err)}");
 
         var pattern = new Regex($@"^(?:\d{{4}}-\d{{2}}-\d{{2}}/)?(?<item>.+)_(?<stamp>\d{{8}}-\d{{6}})\.{Regex.Escape(extension)}$", RegexOptions.CultureInvariant);
         using var doc = JsonDocument.Parse(text);
@@ -188,13 +354,13 @@ public static class Cloud
     }
 
     /// <summary>Sıkıştırılmamış tarih klasörlerine saklama kuralını uygular; yalnızca yyyy-MM-dd/öğe yapısına dokunur.</summary>
-    public static async Task<int> ApplyFolderRetentionAsync(string target, string folder, int keep, int keepDays, Action<string>? log, CancellationToken ct)
+    public static async Task<int> ApplyFolderRetentionAsync(string target, string folder, int keep, int keepDays, Action<string>? log, CancellationToken ct, int depth = 2)
     {
         if (keep <= 0 && keepDays <= 0) return 0;
-        var (code, text) = await Proc.RunAsync(Exe, Args("lsjson", Join(target, folder), "--dirs-only", "-R", "--max-depth", "2"), null, ct);
-        if (code != 0) throw new IOException($"{target}: eski klasörler listelenemedi: {Tail(text)}");
+        var (code, text, err) = await Proc.CaptureAsync(Exe, Args("lsjson", Join(target, folder), "--dirs-only", "-R", "--max-depth", depth.ToString(CultureInfo.InvariantCulture)), ct);
+        if (code != 0) throw new IOException($"{target}: eski klasörler listelenemedi: {Tail(err)}");
         var cutoff = keepDays > 0 ? DateTime.Today.AddDays(-keepDays) : DateTime.MinValue;
-        var pattern = new Regex(@"^(?<date>\d{4}-\d{2}-\d{2})/(?<item>[^/]+)$", RegexOptions.CultureInvariant);
+        var pattern = new Regex(@"^(?<date>\d{4}-\d{2}-\d{2})/(?<item>[^/]+" + string.Concat(Enumerable.Repeat("/[^/]+", depth - 2)) + ")$", RegexOptions.CultureInvariant);
         using var doc = JsonDocument.Parse(text);
         var old = doc.RootElement.EnumerateArray()
             .Select(e => pattern.Match(e.GetProperty("Path").GetString()!))
@@ -214,25 +380,29 @@ public static class Cloud
     }
 
     /// <summary>Gerçek bir küçük dosya yükleyip silerek bağlantıyı ve yükleme hızını ölçer.</summary>
-    public static async Task<ConnectionResult> TestAsync(string target, CancellationToken ct)
+    public static async Task<ConnectionResult> TestAsync(string target, CancellationToken ct, Action<string>? step = null)
     {
         var dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "Backup360", Guid.NewGuid().ToString("N"))).FullName;
-        const string remoteFolder = "Backup360/.baglanti-testi";
+        const string remoteFolder = ".backup360-baglanti-testi";   // Tek seviye: test sonunda hedefte iz kalmaz
         var file = Path.Combine(dir, $"test-{Guid.NewGuid():N}.bin");
         try
         {
+            const int size = 4 * 1024 * 1024;
+            step?.Invoke("Hedefe bağlanılıyor");
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            var (listCode, listText) = await Proc.RunAsync(Exe, Args("lsf", target + ":", "--max-depth", "1"), null, ct);
+            var (listCode, listText) = await Proc.RunAsync(Exe, Args("lsf", target + ":", "--max-depth", "1", "--retries", "1", "--low-level-retries", "2"), null, ct);
             var latency = clock.ElapsedMilliseconds;
             if (listCode != 0) return new ConnectionResult(false, Tail(listText), latency, 0);
 
-            await File.WriteAllBytesAsync(file, System.Security.Cryptography.RandomNumberGenerator.GetBytes(8 * 1024 * 1024), ct);
+            step?.Invoke("Yükleme hızı ölçülüyor (4 MB)");
+            await File.WriteAllBytesAsync(file, System.Security.Cryptography.RandomNumberGenerator.GetBytes(size), ct);
             clock.Restart();
-            var (code, text) = await Proc.RunAsync(Exe, Args("copyto", file, Join(target, remoteFolder, Path.GetFileName(file))), null, ct);
+            var (code, text) = await Proc.RunAsync(Exe, Args("copyto", file, Join(target, remoteFolder, Path.GetFileName(file)), "--retries", "1", "--low-level-retries", "2"), null, ct);
             var seconds = Math.Max(0.001, clock.Elapsed.TotalSeconds);
             if (code != 0) return new ConnectionResult(false, Tail(text), latency, 0);
+            step?.Invoke("Test dosyası siliniyor");
             await Proc.RunAsync(Exe, Args("purge", Join(target, remoteFolder)), null, ct);
-            var speed = 8d * 1024 * 1024 / seconds;
+            var speed = (double)size / seconds;
             Estimator.StoreSpeed(target, speed);
             return new ConnectionResult(true, "Bağlantı başarılı", latency, speed);
         }

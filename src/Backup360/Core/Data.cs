@@ -41,6 +41,8 @@ public sealed class Job
     /// <summary>archive: tek arşiv · dated: her alt klasöre tarihli arşiv · mirror: sıkıştırmadan birebir</summary>
     public string Mode { get; set; } = "archive";
     public string Group { get; set; } = "Genel";
+    public string SyncKind { get; set; } = "folder";   // folder | sql
+    public long SyncFromJob { get; set; }   // SQL eşitlemede yedekleri alınacak iş
     public string DatedOutput { get; set; } = "archive";   // archive: sıkıştırılmış | folder: klasör olarak
     public int DaysFilter { get; set; }   // >0 ise yalnızca son N günde değişen alt klasörler
     public int KeepDays { get; set; }     // >0 ise N günden eski yedekler silinir

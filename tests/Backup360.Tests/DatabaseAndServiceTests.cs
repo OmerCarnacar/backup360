@@ -272,6 +272,32 @@ public class ServiceTests
     }
 
     [Fact]
+    public async Task Multiple_sources_become_subfolders_of_the_day_folder()
+    {
+        using var s = new Sandbox();
+        var a = Directory.CreateDirectory(Path.Combine(s.Root, "Muhasebe", "Faturalar")).FullName;
+        var b = Directory.CreateDirectory(Path.Combine(s.Root, "Satis", "Teklifler")).FullName;
+        File.WriteAllText(Path.Combine(a, "a.txt"), "a");
+        File.WriteAllText(Path.Combine(b, "b.txt"), "b");
+        var job = new Job { Name = "Gun", Mode = "dated", DatedOutput = "folder", Sources = new() { Path.Combine(s.Root, "Muhasebe"), Path.Combine(s.Root, "Satis") }, Targets = new() { "gdrive" } };
+        Db.Save(job);
+        var r = await BackupRunner.RunAsync(job.Id, null, default);
+        Assert.True(r.Status == "success", r.Detail);
+        var today = DateTime.Now.ToString("yyyy-MM-dd");
+        Assert.Equal(new[] { $"Backup360/Gun/{today}/Muhasebe/Faturalar/a.txt", $"Backup360/Gun/{today}/Satis/Teklifler/b.txt" }, Files(s.Cloud1));
+
+        var baseDir = Path.Combine(s.Cloud1, "J");
+        foreach (var p in new[] { "2020-01-01/Muhasebe/Faturalar", "2020-01-02/Muhasebe/Faturalar", "2020-01-01/Satis/Teklifler" })
+        {
+            Directory.CreateDirectory(Path.Combine(baseDir, p));
+            File.WriteAllText(Path.Combine(baseDir, p, "a.txt"), "x");
+        }
+        Assert.Equal(1, await Cloud.ApplyFolderRetentionAsync("gdrive", "J", 0, 5, null, default, 3));
+        Assert.False(Directory.Exists(Path.Combine(baseDir, "2020-01-01", "Muhasebe", "Faturalar")));
+        Assert.True(Directory.Exists(Path.Combine(baseDir, "2020-01-01", "Satis", "Teklifler")));
+    }
+
+    [Fact]
     public async Task Days_filter_skips_old_folders()
     {
         using var s = new Sandbox();

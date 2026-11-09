@@ -1,0 +1,54 @@
+<ui:FluentWindow x:Class="Backup360.UI.SyncEditorWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Width="760" Height="780" WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <ui:TitleBar x:Name="Bar" ShowMaximize="False" ShowMinimize="False" />
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24,4,24,12">
+                <ui:InfoBar x:Name="Intro" IsOpen="True" IsClosable="False" Severity="Informational" Message="Yalnızca yeni ve değişen dosyalar aktarılır. Değişen dosyanın tamamı yeniden kopyalanır." />
+                <TextBlock Text="İş adı ve grup" Style="{StaticResource FieldLabel}" />
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    <ui:TextBox x:Name="NameBox" />
+                    <ComboBox x:Name="GroupBox" Grid.Column="2" IsEditable="True" />
+                </Grid>
+
+                <TextBlock Text="Kaynak" Style="{StaticResource Section}" />
+                <StackPanel x:Name="SqlSource">
+                    <TextBlock Text="Eşitlenecek SQL yedek işi" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                    <ComboBox x:Name="FromJob" />
+                    <TextBlock Text="veya yerel yedek klasörleri:" Style="{StaticResource FieldLabel}" />
+                </StackPanel>
+                <ListBox x:Name="Sources" Height="120" SelectionMode="Extended" />
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <ui:Button Content="Klasör ekle" Icon="{ui:SymbolIcon FolderAdd24}" Margin="0,0,8,0" Click="AddFolders_Click" />
+                    <ui:Button Content="Ağ yolu ekle" Icon="{ui:SymbolIcon Server24}" Margin="0,0,8,0" Click="AddNetwork_Click" />
+                    <ui:Button Content="Kaldır" Icon="{ui:SymbolIcon Delete24}" Click="Remove_Click" />
+                </StackPanel>
+
+                <TextBlock Text="Hedef" Style="{StaticResource Section}" />
+                <TextBlock Text="Başka klasör, NAS veya farklı PC için Hedefler sayfasından tanım yapın." Style="{StaticResource Muted}" />
+                <StackPanel x:Name="Targets" Margin="0,6,0,0" />
+                <TextBlock x:Name="NoTargets" Text="Henüz hedef yok. Önce Hedefler sayfasından bir hedef tanımlayın." Foreground="#F87171" Visibility="Collapsed" />
+                <TextBlock Text="Hedefteki klasör (boş bırakılabilir)" Style="{StaticResource FieldLabel}" />
+                <ui:TextBox x:Name="Folder" />
+                <CheckBox x:Name="MirrorDelete" Margin="0,12,0,0">
+                    <TextBlock Text="Birebir eşitle: kaynakta silinenleri hedeften de kaldır (_silinenler klasöründe saklanır)" />
+                </CheckBox>
+                <TextBlock Text="Hariç tutulacaklar (noktalı virgülle)" Style="{StaticResource FieldLabel}" />
+                <ui:TextBox x:Name="Excludes" />
+
+                <TextBlock Text="Zamanlama" Style="{StaticResource Section}" />
+                <ContentControl x:Name="ScheduleHost" />
+            </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="20,10,20,16">
+            <ui:Button Content="Vazgeç" MinWidth="100" Margin="0,0,8,0" IsCancel="True" />
+            <ui:Button Content="Kaydet" Icon="{ui:SymbolIcon Save24}" Appearance="Primary" MinWidth="120" Click="Save_Click" />
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

@@ -1,0 +1,43 @@
+<ui:FluentWindow x:Class="Backup360.UI.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:p="clr-namespace:Backup360.UI"
+                 Title="Backup360" Width="1280" Height="820" MinWidth="1060" MinHeight="660"
+                 WindowStartupLocation="CenterScreen" ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica" WindowCornerPreference="Round">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar x:Name="Bar" Grid.Row="0" Title="Backup360">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Backup360;component/Assets/logo.png" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+        <ui:NavigationView x:Name="Nav" Grid.Row="1" PaneDisplayMode="Left" IsBackButtonVisible="Collapsed" IsPaneToggleVisible="True" OpenPaneLength="224">
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem Content="Pano" Icon="{ui:SymbolIcon Home24}" TargetPageType="{x:Type p:DashboardPage}" />
+                <ui:NavigationViewItemHeader Text="YEDEKLEME" />
+                <ui:NavigationViewItem Content="Klasör Yedekleme" Icon="{ui:SymbolIcon FolderArrowUp24}" TargetPageType="{x:Type p:FolderBackupPage}" />
+                <ui:NavigationViewItem Content="SQL Yedekleme" Icon="{ui:SymbolIcon Database24}" TargetPageType="{x:Type p:SqlBackupPage}" />
+                <ui:NavigationViewItemHeader Text="EŞİTLEME" />
+                <ui:NavigationViewItem Content="Klasör Eşitleme" Icon="{ui:SymbolIcon FolderSync24}" TargetPageType="{x:Type p:FolderSyncPage}" />
+                <ui:NavigationViewItem Content="SQL Eşitleme" Icon="{ui:SymbolIcon DatabaseArrowRight20}" TargetPageType="{x:Type p:SqlSyncPage}" />
+                <ui:NavigationViewItemHeader Text="DOSYA İŞLEMLERİ" />
+                <ui:NavigationViewItem Content="Klasör Taşıma" Icon="{ui:SymbolIcon FolderArrowRight24}" TargetPageType="{x:Type p:RulesPage}" />
+                <ui:NavigationViewItemHeader Text="BAĞLANTILAR" />
+                <ui:NavigationViewItem Content="Hedefler" Icon="{ui:SymbolIcon Cloud24}" TargetPageType="{x:Type p:TargetsPage}" />
+                <ui:NavigationViewItem Content="Bulut Gezgini" Icon="{ui:SymbolIcon FolderOpen24}" TargetPageType="{x:Type p:ExplorerPage}" />
+                <ui:NavigationViewItemHeader Text="İZLEME" />
+                <ui:NavigationViewItem Content="Geçmiş" Icon="{ui:SymbolIcon History24}" TargetPageType="{x:Type p:HistoryPage}" />
+                <ui:NavigationViewItem Content="Canlı Günlük" Icon="{ui:SymbolIcon TextBulletListSquare24}" TargetPageType="{x:Type p:LogPage}" />
+            </ui:NavigationView.MenuItems>
+            <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem Content="Ayarlar" Icon="{ui:SymbolIcon Settings24}" TargetPageType="{x:Type p:SettingsPage}" />
+                <ui:NavigationViewItem Content="Hakkında" Icon="{ui:SymbolIcon Info24}" TargetPageType="{x:Type p:AboutPage}" />
+            </ui:NavigationView.FooterMenuItems>
+        </ui:NavigationView>
+    </Grid>
+</ui:FluentWindow>

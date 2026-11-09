@@ -1,0 +1,154 @@
+<Page x:Class="Backup360.UI.DashboardPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF">
+    <StackPanel Margin="28,12,28,24">
+        <Border CornerRadius="14" Height="120" ClipToBounds="True">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4">
+                    <GradientStop Color="#0F172A" Offset="0" />
+                    <GradientStop Color="#4338CA" Offset="0.62" />
+                    <GradientStop Color="#06B6D4" Offset="1" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <Grid>
+                <Canvas HorizontalAlignment="Right" Width="420">
+                    <Ellipse Width="210" Height="210" Fill="#1FFFFFFF" Canvas.Left="150" Canvas.Top="-70">
+                        <Ellipse.RenderTransform>
+                            <TranslateTransform />
+                        </Ellipse.RenderTransform>
+                        <Ellipse.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" From="-50" To="60" Duration="0:0:7" />
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="-10" To="24" Duration="0:0:5" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Ellipse.Triggers>
+                    </Ellipse>
+                    <Ellipse Width="130" Height="130" Fill="#1AFFFFFF" Canvas.Left="40" Canvas.Top="20">
+                        <Ellipse.RenderTransform>
+                            <TranslateTransform />
+                        </Ellipse.RenderTransform>
+                        <Ellipse.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" From="40" To="-40" Duration="0:0:9" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Ellipse.Triggers>
+                    </Ellipse>
+                </Canvas>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="26,0">
+                    <Grid Width="60" Height="60" Margin="0,0,18,0">
+                        <Ellipse Fill="#33FFFFFF" />
+                        <ui:SymbolIcon x:Name="HeroIcon" Symbol="ShieldCheckmark24" FontSize="30" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="HeroTitle" Text="Hoş geldiniz" FontSize="24" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock x:Name="HeroSub" Foreground="#E2E8F0" Margin="0,4,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <UniformGrid Columns="4" Margin="0,14,0,0">
+            <ui:Card Margin="0,0,10,0" Padding="16">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="30" Foreground="#10B981" Margin="0,0,14,0" />
+                    <StackPanel><TextBlock Text="Başarılı (7 gün)" Style="{StaticResource Muted}" FontSize="12" /><TextBlock x:Name="StatOk" Text="—" FontSize="22" FontWeight="SemiBold" /></StackPanel>
+                </StackPanel>
+            </ui:Card>
+            <ui:Card Margin="5,0" Padding="16">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="Warning24" FontSize="30" Foreground="#F59E0B" Margin="0,0,14,0" />
+                    <StackPanel><TextBlock Text="Hata / uyarı (7 gün)" Style="{StaticResource Muted}" FontSize="12" /><TextBlock x:Name="StatBad" Text="—" FontSize="22" FontWeight="SemiBold" /></StackPanel>
+                </StackPanel>
+            </ui:Card>
+            <ui:Card Margin="5,0" Padding="16">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="30" Foreground="#818CF8" Margin="0,0,14,0" />
+                    <StackPanel><TextBlock Text="Aktarılan (7 gün)" Style="{StaticResource Muted}" FontSize="12" /><TextBlock x:Name="StatSent" Text="—" FontSize="22" FontWeight="SemiBold" /></StackPanel>
+                </StackPanel>
+            </ui:Card>
+            <ui:Card Margin="10,0,0,0" Padding="16">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="TopSpeed24" FontSize="30" Foreground="#22D3EE" Margin="0,0,14,0" />
+                    <StackPanel><TextBlock Text="Ortalama hız" Style="{StaticResource Muted}" FontSize="12" /><TextBlock x:Name="StatSpeed" Text="—" FontSize="22" FontWeight="SemiBold" /></StackPanel>
+                </StackPanel>
+            </ui:Card>
+        </UniformGrid>
+
+        <TextBlock Text="Canlı aktarımlar" Style="{StaticResource Section}" />
+        <TextBlock x:Name="LiveEmpty" Text="Şu anda çalışan işlem yok." Style="{StaticResource Muted}" />
+        <StackPanel x:Name="LivePanel" />
+
+        <Grid Margin="0,18,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="2*" />
+            </Grid.ColumnDefinitions>
+            <ui:Card Padding="16" VerticalAlignment="Stretch">
+                <StackPanel>
+                    <TextBlock Text="Son 7 gün · çalışma sayısı" FontSize="15" FontWeight="SemiBold" />
+                    <lvc:CartesianChart x:Name="Chart" Background="Transparent" Height="220" Margin="0,8,0,0" LegendPosition="Top" />
+                </StackPanel>
+            </ui:Card>
+            <ui:Card Grid.Column="2" Padding="16" VerticalAlignment="Stretch">
+                <StackPanel>
+                    <TextBlock Text="Son etkinlikler" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10" />
+                    <TextBlock x:Name="FeedEmpty" Text="Henüz çalışma yok." Style="{StaticResource Muted}" />
+                    <ItemsControl x:Name="Feed">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Symbol="{Binding Icon}" Foreground="{Binding Brush}" FontSize="22" Margin="0,0,10,0" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Label}" FontSize="12" Style="{StaticResource Muted}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding When}" FontSize="12" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ui:Card>
+        </Grid>
+
+        <TextBlock Text="Yaklaşan zamanlamalar" Style="{StaticResource Section}" />
+        <TextBlock x:Name="UpcomingEmpty" Text="Zamanlanmış iş yok. Bir yedekleme işi veya taşıma kuralı oluşturun." Style="{StaticResource Muted}" />
+        <ItemsControl x:Name="Upcoming">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <ui:Card Width="300" Margin="0,0,12,12" Padding="14">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:ProgressRing IsIndeterminate="False" Progress="{Binding Percent}" Width="52" Height="52" Margin="0,0,14,0" />
+                            <StackPanel VerticalAlignment="Center" Width="196">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Plan}" FontSize="12" Style="{StaticResource Muted}" />
+                                <TextBlock Text="{Binding Remaining}" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</Page>

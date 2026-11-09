@@ -1,0 +1,26 @@
+<Page x:Class="Backup360.UI.AboutPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <StackPanel Margin="28,20,28,24" HorizontalAlignment="Left">
+        <ui:Card Padding="28" MinWidth="560">
+            <StackPanel>
+                <Image Source="pack://application:,,,/Backup360;component/Assets/logo.png" Width="104" Height="104" HorizontalAlignment="Left" RenderOptions.BitmapScalingMode="HighQuality" />
+                <TextBlock Text="Backup360" FontSize="32" FontWeight="SemiBold" Margin="0,12,0,2" />
+                <TextBlock x:Name="VersionText" Style="{StaticResource Muted}" />
+                <TextBlock Text="Ücretsiz sürüm, para ile satılamaz" Style="{StaticResource Muted}" Margin="0,2,0,14" />
+                <TextBlock x:Name="AuthorText" FontSize="16" FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,10">
+                    <ui:HyperlinkButton x:Name="MailLink" Padding="0,4" Click="Mail_Click" />
+                    <ui:Button x:Name="CopyButton" Content="Kopyala" Icon="{ui:SymbolIcon Copy24}" Margin="12,0,0,0" Click="Copy_Click" />
+                </StackPanel>
+                <WrapPanel>
+                    <ui:Button Content="LinkedIn" Icon="{ui:SymbolIcon PersonLink24}" Margin="0,0,8,8" Tag="linkedin" Click="Link_Click" />
+                    <ui:Button Content="Twitter" Icon="{ui:SymbolIcon Chat24}" Margin="0,0,8,8" Tag="twitter" Click="Link_Click" />
+                    <ui:Button Content="GitHub" Icon="{ui:SymbolIcon Code24}" Margin="0,0,8,8" Tag="github" Click="Link_Click" />
+                    <ui:Button Content="Son sürümü indir" Icon="{ui:SymbolIcon ArrowDownload24}" Appearance="Primary" Margin="0,0,8,8" Tag="release" Click="Link_Click" />
+                </WrapPanel>
+            </StackPanel>
+        </ui:Card>
+    </StackPanel>
+</Page>

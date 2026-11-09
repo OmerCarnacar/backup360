@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Windows;
 using Backup360.Core;
 using Backup360.UI;
 
@@ -45,6 +46,8 @@ public static class Launcher
         if (EventWaitHandle.TryOpenExisting(EventName(kind, id), out var ev))
             using (ev) ev.Set();
     }
+
+    public static void Open(string url) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
 }
 
 internal static class Program
@@ -58,27 +61,32 @@ internal static class Program
             if (args[0] == "--run-job") return Headless("job", id);
             if (args[0] == "--run-rule") return Headless("rule", id);
         }
-
         if (args.Length == 2 && args[0] == "--run-group") return RunGroup(args[1]);
 
-        ApplicationConfiguration.Initialize();
-        Application.ThreadException += (_, e) =>
+        var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        app.InitializeComponent();
+        ThemeService.Apply();
+        app.DispatcherUnhandledException += (_, e) =>
         {
             new RunLog("Arayüz hatası", null).Write(e.Exception.ToString());
-            MessageBox.Show(e.Exception.Message, "Backup360", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(e.Exception.Message, "Backup360", MessageBoxButton.OK, MessageBoxImage.Error);
+            e.Handled = true;
         };
+
         if (args.Length == 1 && args[0] == "--reset-login")
         {
             if (MessageBox.Show("Tüm giriş hesapları silinecek; işler ve kurallar korunur. Devam edilsin mi?", "Backup360",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
                 Auth.ResetLogins();
             return 0;
         }
 
-        using var login = new LoginForm();
-        if (login.ShowDialog() != DialogResult.OK) return 0;
-        Application.Run(new MainForm(login.UserName));
-        return 0;
+        var login = new LoginWindow();
+        if (login.ShowDialog() != true) return 0;
+        var main = new MainWindow(login.UserName);
+        app.MainWindow = main;
+        app.ShutdownMode = ShutdownMode.OnMainWindowClose;
+        return app.Run(main);
     }
 
     /// <summary>Gruptaki işleri sırayla çalıştırır; biri hata verse de diğerleri devam eder.</summary>

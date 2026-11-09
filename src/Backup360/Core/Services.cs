@@ -111,7 +111,7 @@ public static class Estimator
     {
         var sb = new StringBuilder();
         var last = Db.LastRun("job", job.Id);
-        var folderBased = job.Mode == "mirror" || (job.Mode == "dated" && job.DatedOutput == "folder");
+        var folderBased = job.Mode is "mirror" or "sync" || (job.Mode == "dated" && job.DatedOutput == "folder");
         var source = job.Mode == "database" ? 0 : MeasureSources(job.Sources);
         if (job.Mode != "database") sb.AppendLine($"Kaynak boyutu: {Size(source)}");
 

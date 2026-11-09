@@ -3,7 +3,6 @@ using System.Formats.Tar;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Backup360.Core;
-using Backup360.UI;
 using Xunit;
 using ZstdSharp;
 
@@ -480,104 +479,5 @@ public class SchedulerTests
         }
         finally { await TaskPlanner.RemoveAsync(name); }
         Assert.False(await TaskPlanner.ExistsAsync(name));
-    }
-}
-
-public class ScreenshotTests
-{
-    private static string ImgDir()
-    {
-        var d = new DirectoryInfo(AppContext.BaseDirectory);
-        while (d != null && !Directory.Exists(Path.Combine(d.FullName, "assets"))) d = d.Parent;
-        return Directory.CreateDirectory(Path.Combine(d!.FullName, "docs", "img")).FullName;
-    }
-
-    private static void Sta(Action a)
-    {
-        Exception? error = null;
-        var t = new Thread(() => { try { a(); } catch (Exception e) { error = e; } });
-        t.SetApartmentState(ApartmentState.STA);
-        t.Start();
-        t.Join();
-        if (error != null) throw new Xunit.Sdk.XunitException(error.ToString());
-    }
-
-    private static void Shot(Form f, string file, Action? before = null)
-    {
-        f.StartPosition = FormStartPosition.Manual;
-        f.Location = new Point(-4000, -4000);
-        f.ShowInTaskbar = false;
-        f.Show();
-        before?.Invoke();
-        var until = Environment.TickCount64 + 2500;
-        while (Environment.TickCount64 < until) { Application.DoEvents(); Thread.Sleep(15); }
-        using var bmp = new Bitmap(f.Width, f.Height);
-        f.DrawToBitmap(bmp, new Rectangle(0, 0, f.Width, f.Height));
-        bmp.Save(Path.Combine(ImgDir(), file));
-        f.Close();
-    }
-
-    [Fact]
-    public void Screens_render()
-    {
-        using var s = new Sandbox();
-        Sta(() =>
-        {
-            Application.EnableVisualStyles();
-            Application.SetHighDpiMode(HighDpiMode.SystemAware);
-            Auth.AddUser("admin", "GucluParola1");
-            using (var login = new LoginForm()) Shot(login, "login.png");
-
-            var job = new Job { Name = "Muhasebe Yedek", Mode = "dated", Sources = new() { @"D:\Sirket\Muhasebe", @"\\NAS\Arsiv" }, Formats = new() { "7z", "zip" }, Targets = new() { "gdrive" }, Schedule = new Schedule { Type = "daily", Time = "02:00" } };
-            Db.Save(job);
-            var run = Db.StartRun("job", job.Id, job.Name);
-            Db.FinishRun(run, "success", "3 öğe, 2 format, 1 hedef", 8_400_000_000);
-            var live = new LiveState { Kind = "job", RefId = job.Id, Name = job.Name, Mode = "dated", Pid = Environment.ProcessId, Stage = "upload", Item = "Satis_20261109-020000.7z", Percent = 64, Speed = 18_300_000, Eta = 94, Done = 3_100_000_000, Total = 4_800_000_000, Files = 1, FilesTotal = 1, Step = 3, Steps = 6, Started = "02:00:04", Log = new() { "02:06:11  [Satis.7z] gönderiliyor: gdrive:Backup360/Muhasebe Yedek/2026-11-09" } };
-            File.WriteAllText(Path.Combine(LiveFiles.Dir, live.Key + ".json"), JsonSerializer.Serialize(live));
-
-            // Pencere açılışındaki görev eşitlemesi test sürecini Görev Zamanlayıcı'ya yazmasın.
-            Db.SetSetting("exe_path", AppPaths.ExePath);
-            using (var main = new MainForm("admin"))
-            {
-                static IEnumerable<Control> All(Control c) => c.Controls.Cast<Control>().SelectMany(x => All(x).Prepend(x));
-                Shot(main, "pano.png", () =>
-                {
-                    var page = All(main).OfType<DashboardPage>().Single();
-                    Assert.True(page.Visible, "Pano görünür değil");
-                    Assert.Single(LiveFiles.ReadAll());
-                    page.RefreshLive();
-                    Assert.Single(All(page).OfType<ActivityCard>());
-                });
-            }
-            Db.Save(new Job { Name = "ERP Veritabanı", Group = "Veritabanları", Mode = "database", DbServer = "SQLAG-LISTENER", Formats = new() { "7z" }, Targets = new() { "gdrive" }, Schedule = new Schedule { Type = "hourly", Interval = 1 } });
-            Db.Save(new Job { Name = "Satış Klasörleri", Group = "Dosyalar", Mode = "dated", DatedOutput = "folder", Sources = new() { @"D:\Satis" }, Targets = new() { "gdrive" }, Schedule = new Schedule { Type = "weekly", Days = "Monday,Friday", Time = "22:00" } });
-            using (var jobs = new MainForm("admin"))
-            {
-                Shot(jobs, "isler.png", () => jobs.Show("Yedekleme İşleri"));
-            }
-            using (var settings = new MainForm("admin"))
-            {
-                // Bu görüntü bilgisayarın yerel yolunu içerir; depoya konmaz.
-                Shot(settings, "ayarlar.png", () => settings.Show("Ayarlar"));
-                File.Delete(Path.Combine(ImgDir(), "ayarlar.png"));
-            }
-            var targets = new List<Target> { new("gdrive", "drive"), new("nas", "alias") };
-            using (var editor = new JobEditor(job, targets))
-            {
-                var tabs = editor.Controls.OfType<TabControl>().Single();
-                Shot(editor, "is-gonderim.png", () => tabs.SelectedIndex = 1);
-            }
-            using (var editor2 = new JobEditor(job, targets))
-            {
-                var tabs = editor2.Controls.OfType<TabControl>().Single();
-                Shot(editor2, "is-sikistirma.png", () => tabs.SelectedIndex = 2);
-            }
-            using (var editor3 = new JobEditor(new Job { Mode = "database", DbServer = "SQLAG-LISTENER" }, targets))
-            {
-                var tabs = editor3.Controls.OfType<TabControl>().Single();
-                Shot(editor3, "is-veritabani.png", () => tabs.SelectedIndex = 4);
-            }
-            using (var rule = new RuleEditor(new MoveRule())) Shot(rule, "kural.png");
-        });
     }
 }

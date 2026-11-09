@@ -1,0 +1,136 @@
+<UserControl x:Class="Backup360.UI.BoardControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <UserControl.Resources>
+        <DataTemplate x:Key="ActionTemplate">
+            <ui:Button Command="{Binding Command}" ToolTip="{Binding Label}" Margin="0,0,6,0" Padding="9,6">
+                <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="16" />
+            </ui:Button>
+        </DataTemplate>
+
+        <DataTemplate x:Key="CardTemplate">
+            <ui:Card Width="392" Margin="0,0,14,14" Padding="16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Width="44" Height="44" Margin="0,0,12,0">
+                        <Ellipse Fill="{Binding Accent}" Opacity="0.18" />
+                        <ui:SymbolIcon Symbol="{Binding Icon}" Foreground="{Binding Accent}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding IconVisibility}" />
+                        <Image Source="{Binding Logo}" Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding LogoVisibility}" />
+                    </Grid>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Subtitle}" FontSize="12" Style="{StaticResource Muted}" ToolTip="{Binding Subtitle}" />
+                    </StackPanel>
+                    <Border Grid.Column="2" VerticalAlignment="Top" CornerRadius="11" Padding="9,3" Margin="8,0,0,0" Background="#1A94A3B8">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7" Fill="{Binding StatusBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <ItemsControl Grid.Row="1" Grid.ColumnSpan="3" ItemsSource="{Binding Chips}" Margin="0,12,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="6" Padding="8,3" Margin="0,0,6,6" Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                                    <TextBlock Text="{Binding}" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Grid Grid.Row="2" Grid.ColumnSpan="3" Margin="0,8,0,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="Clock24" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding Footer}" FontSize="12" Style="{StaticResource Muted}" MaxWidth="210" />
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding Actions}" ItemTemplate="{StaticResource ActionTemplate}" HorizontalAlignment="Right">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </Grid>
+
+                    <StackPanel Grid.Row="3" Grid.ColumnSpan="3" Margin="0,12,0,0" Visibility="{Binding Live.Visibility}">
+                        <Grid>
+                            <TextBlock Text="{Binding Live.Stage}" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="{Binding Live.PercentText}" FontWeight="SemiBold" FontSize="15" HorizontalAlignment="Right" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        </Grid>
+                        <ProgressBar Height="6" Margin="0,6,0,6" Maximum="100" Value="{Binding Live.Percent, Mode=OneWay}" IsIndeterminate="{Binding Live.Indeterminate}" />
+                        <TextBlock Text="{Binding Live.Item}" FontSize="12" Style="{StaticResource Muted}" ToolTip="{Binding Live.Item}" />
+                        <TextBlock Text="{Binding Live.Stats}" FontSize="12" Style="{StaticResource Muted}" />
+                        <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" CornerRadius="6" Padding="8,6" Margin="0,6,0,6">
+                            <TextBlock Text="{Binding Live.Flow}" FontFamily="Cascadia Mono, Consolas" FontSize="11" MinHeight="16" MaxHeight="118" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        </Border>
+                        <ui:Button Command="{Binding Live.Stop}" Visibility="{Binding Live.StopVisibility}" Content="Durdur" HorizontalAlignment="Right" />
+                    </StackPanel>
+                </Grid>
+            </ui:Card>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <StackPanel Margin="28,12,20,20">
+        <Grid Margin="0,0,0,8">
+            <StackPanel>
+                <TextBlock x:Name="TitleText" Style="{StaticResource PageTitle}" />
+                <TextBlock x:Name="HintText" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+            </StackPanel>
+            <StackPanel x:Name="TopActions" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+        <ui:InfoBar x:Name="Notice" IsOpen="False" IsClosable="True" Margin="0,0,14,10" />
+        <TextBlock x:Name="StatusText" Style="{StaticResource Muted}" Visibility="Collapsed" Margin="0,0,0,8" />
+
+        <ItemsControl x:Name="Groups">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="0,10,0,4">
+                        <Grid Margin="0,0,14,10">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <Border CornerRadius="9" Padding="7,1" Margin="8,0,0,0" Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                    <TextBlock Text="{Binding Count}" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </Border>
+                            </StackPanel>
+                            <ui:Button HorizontalAlignment="Right" Command="{Binding Action.Command}" Visibility="{Binding ActionVisibility}" Padding="10,5">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="{Binding Action.Icon}" FontSize="15" Margin="0,0,6,0" />
+                                    <TextBlock Text="{Binding Action.Label}" />
+                                </StackPanel>
+                            </ui:Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource CardTemplate}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel x:Name="Empty" HorizontalAlignment="Center" Margin="0,90,0,0" Visibility="Collapsed">
+            <ui:SymbolIcon Symbol="BoxMultiple24" FontSize="56" HorizontalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            <TextBlock x:Name="EmptyText" Style="{StaticResource Muted}" Margin="0,12,0,0" FontSize="15" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

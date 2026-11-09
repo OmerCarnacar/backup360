@@ -10,5 +10,7 @@ Backup360 aşağıdaki bileşenleri kullanır. Bu bileşenler Backup360 lisansı
 | Microsoft.Data.Sqlite, Microsoft.Data.SqlClient, .NET | Çalışma ortamı, SQL Server bağlantısı | MIT | https://github.com/dotnet |
 | ZstdSharp | Zstandard sıkıştırma | MIT | https://github.com/oleg-st/ZstdSharp |
 | MailKit, MimeKit | E-posta bildirimi | MIT | https://github.com/jstedfast/MailKit |
+| WPF-UI | Fluent arayüz bileşenleri | MIT | https://github.com/lepoco/wpfui |
+| LiveCharts2, SkiaSharp | Grafikler | MIT | https://github.com/beto-rodriguez/LiveCharts2 |
 
-WinRAR ve MySQL istemci araçları Backup360 ile dağıtılmaz. `rar` formatı için lisanslı WinRAR, MySQL/MariaDB yedeği için bilgisayarda `mysqldump` gerekir.
+WinRAR, WinFsp ve MySQL istemci araçları Backup360 ile dağıtılmaz. Disk olarak bağlama için bilgisayarda WinFsp (https://winfsp.dev) gerekir. `rar` formatı için lisanslı WinRAR, MySQL/MariaDB yedeği için bilgisayarda `mysqldump` gerekir.

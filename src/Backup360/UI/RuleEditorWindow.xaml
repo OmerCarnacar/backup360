@@ -1,0 +1,48 @@
+<ui:FluentWindow x:Class="Backup360.UI.RuleEditorWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Width="680" Height="720" WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <ui:TitleBar x:Name="Bar" ShowMaximize="False" ShowMinimize="False" />
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24,4,24,12">
+                <TextBlock Text="Kural adı ve grup" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    <ui:TextBox x:Name="NameBox" />
+                    <ComboBox x:Name="GroupBox" Grid.Column="2" IsEditable="True" />
+                </Grid>
+                <TextBlock Text="Kaynak klasör (yeni dosyaların geldiği yer)" Style="{StaticResource FieldLabel}" />
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <ui:TextBox x:Name="Source" />
+                    <ui:Button Grid.Column="1" Content="Seç" Icon="{ui:SymbolIcon Folder24}" Margin="8,0,0,0" Tag="source" Click="Pick_Click" />
+                </Grid>
+                <TextBlock Text="Hedef klasör (dosyaların taşınacağı yer)" Style="{StaticResource FieldLabel}" />
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <ui:TextBox x:Name="Target" />
+                    <ui:Button Grid.Column="1" Content="Seç" Icon="{ui:SymbolIcon Folder24}" Margin="8,0,0,0" Tag="target" Click="Pick_Click" />
+                </Grid>
+                <TextBlock Text="Dosya filtresi (noktalı virgülle, örn: *.pdf;*.xlsx)" Style="{StaticResource FieldLabel}" />
+                <ui:TextBox x:Name="Pattern" />
+                <CheckBox x:Name="Recursive" Content="Alt klasörleri de tara (klasör yapısı hedefte korunur)" Margin="0,12,0,2" />
+                <CheckBox x:Name="OnlyNew" Content="Yalnızca kural oluşturulduktan sonra gelen dosyaları taşı" />
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    <StackPanel><TextBlock Text="Hedefte aynı adlı dosya varsa" Style="{StaticResource FieldLabel}" /><ComboBox x:Name="Conflict"><ComboBoxItem Content="Yeni adla kaydet: dosya (1).pdf" /><ComboBoxItem Content="Atla, kaynakta kalsın" /><ComboBoxItem Content="Üzerine yaz" /></ComboBox></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="Kaç saniye değişmezse hazır sayılsın" Style="{StaticResource FieldLabel}" /><ui:NumberBox x:Name="Stable" Minimum="0" Maximum="3600" /></StackPanel>
+                </Grid>
+                <TextBlock Text="Kontrol sıklığı" Style="{StaticResource Section}" />
+                <ContentControl x:Name="ScheduleHost" />
+            </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="20,10,20,16">
+            <ui:Button Content="Vazgeç" MinWidth="100" Margin="0,0,8,0" IsCancel="True" />
+            <ui:Button Content="Kaydet" Icon="{ui:SymbolIcon Save24}" Appearance="Primary" MinWidth="120" Click="Save_Click" />
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

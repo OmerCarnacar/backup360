@@ -6,7 +6,8 @@ public static class BackupRunner
 {
     public sealed record Outcome(string Status, string Detail, long Bytes);
 
-    private sealed record Item(string Name, List<string> Paths, string? DateFolder, string? Fingerprint);
+    /// <summary>RemotePath: klasör olarak gönderimde gün klasörünün altındaki yol.</summary>
+    private sealed record Item(string Name, List<string> Paths, string? DateFolder, string? Fingerprint, string? RemotePath = null);
 
     public static async Task<Outcome> RunAsync(long jobId, Action<string>? ui, CancellationToken ct)
     {
@@ -29,6 +30,7 @@ public static class BackupRunner
             {
                 "mirror" => await MirrorAsync(job, log, ct),
                 "database" => await DatabaseAsync(job, work, log, ct),
+                "sync" => await SyncAsync(job, log, ct),
                 _ => await ArchiveAsync(job, work, log, ct),
             };
             return outcome;
@@ -63,6 +65,7 @@ public static class BackupRunner
     private static void ApplyStats(RunLog log, TransferStats s) => log.Update(l =>
     {
         l.Done = s.Bytes; l.Total = s.Total; l.Speed = s.Speed; l.Eta = s.Eta;
+        l.Transfers = s.Active.ToList();
         l.Files = s.Files; l.FilesTotal = s.FilesTotal;
         if (s.Current != null) l.Item = s.Current;
         l.Percent = s.Total > 0 ? (int)(s.Bytes * 100 / s.Total) : -1;
@@ -72,6 +75,40 @@ public static class BackupRunner
     {
         l.Stage = stage; l.Item = item; l.Percent = -1; l.Speed = 0; l.Eta = -1; l.Done = 0; l.Total = 0;
     });
+
+    private static async Task<Outcome> SyncAsync(Job job, RunLog log, CancellationToken ct)
+    {
+        Validation.Check(job);
+        await CheckTargetsAsync(job, ct);
+        var pairs = SyncPlanner.Pairs(job);
+        var stamp = Cloud.Stamp();
+        var errors = new List<string>();
+        long total = 0;
+        for (var i = 0; i < pairs.Count; i++)
+        {
+            var pair = pairs[i];
+            var (current, count) = (i + 1, pairs.Count);
+            Stage(log, "scan", pair.Source);
+            log.Update(l => { l.Step = current; l.Steps = count; });
+            log.Write($"Eşitleniyor: {pair.Source} -> {pair.Target}:{pair.Folder}");
+            long sent = 0;
+            try
+            {
+                Stage(log, "upload", pair.Source);
+                await Cloud.SyncAsync(pair, job.MirrorDelete, job.RemoteFolder, stamp, job.Excludes, log.Write, s => { sent = s.Bytes; ApplyStats(log, s); }, ct);
+                total += sent;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception e)
+            {
+                log.Write("HATA: " + e.Message);
+                errors.Add(e.Message);
+            }
+        }
+        var status = errors.Count > 0 ? "failed" : "success";
+        log.Write($"Bitti: {status}");
+        return new Outcome(status, errors.Count > 0 ? string.Join(" ; ", errors.Take(5)) : $"{pairs.Count} eşitleme, {total / 1048576.0:0.0} MB fark aktarıldı", total);
+    }
 
     private static async Task<Outcome> MirrorAsync(Job job, RunLog log, CancellationToken ct)
     {
@@ -143,21 +180,23 @@ public static class BackupRunner
                 log.Write("  uyarı: klasör bulunamadı: " + source);
                 continue;
             }
-            var prefix = job.Sources.Count > 1 ? Cloud.SafeName(Path.GetFileName(Path.TrimEndingDirectorySeparator(source))) + "__" : "";
+            var sourceName = Cloud.SafeName(Path.GetFileName(Path.TrimEndingDirectorySeparator(source)));
+            var prefix = job.Sources.Count > 1 ? sourceName + "__" : "";
+            var parent = job.Sources.Count > 1 ? sourceName + "/" : "";
             var root = new DirectoryInfo(source);
             foreach (var dir in root.EnumerateDirectories().Where(d => !d.Attributes.HasFlag(FileAttributes.System)).OrderBy(d => d.Name))
             {
                 var (count, size, last) = Scan(dir.FullName);
                 if (count == 0) { log.Write($"  boş klasör atlandı: {dir.Name}"); continue; }
-                Add(prefix + Cloud.SafeName(dir.Name), new List<string> { dir.FullName }, count, size, last);
+                Add(prefix + Cloud.SafeName(dir.Name), parent + Cloud.SafeName(dir.Name), new List<string> { dir.FullName }, count, size, last);
             }
             var loose = root.EnumerateFiles().Where(f => !f.Attributes.HasFlag(FileAttributes.System)).ToList();
             if (loose.Count > 0)
-                Add(prefix + "_KokDosyalar", loose.Select(f => f.FullName).ToList(), loose.Count, loose.Sum(f => f.Length), loose.Max(f => f.LastWriteTime));
+                Add(prefix + "_KokDosyalar", parent + "_KokDosyalar", loose.Select(f => f.FullName).ToList(), loose.Count, loose.Sum(f => f.Length), loose.Max(f => f.LastWriteTime));
         }
         return items;
 
-        void Add(string name, List<string> paths, int count, long size, DateTime last)
+        void Add(string name, string remotePath, List<string> paths, int count, long size, DateTime last)
         {
             if (job.DaysFilter > 0 && last < DateTime.Now.AddDays(-job.DaysFilter))
             {
@@ -171,7 +210,7 @@ public static class BackupRunner
                 return;
             }
             var date = job.DateBy == "folder" ? last.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : today;
-            items.Add(new Item(name, paths, date, fingerprint));
+            items.Add(new Item(name, paths, date, fingerprint, remotePath));
         }
     }
 
@@ -236,12 +275,12 @@ public static class BackupRunner
                     foreach (var path in item.Paths)
                     {
                         // Klasör öğe adıyla yazılır; kök dosyaları öğe klasörünün içine konur.
-                        if (Directory.Exists(path)) await Cloud.MirrorAsync(path, target, dateFolder, false, stamp, job.Excludes, log.Write, s => { sent = s.Bytes; ApplyStats(log, s); }, ct, item.Name);
-                        else await Cloud.MirrorAsync(path, target, $"{dateFolder}/{item.Name}", false, stamp, job.Excludes, log.Write, s => { sent = s.Bytes; ApplyStats(log, s); }, ct);
+                        if (Directory.Exists(path)) await Cloud.MirrorAsync(path, target, dateFolder, false, stamp, job.Excludes, log.Write, s => { sent = s.Bytes; ApplyStats(log, s); }, ct, item.RemotePath ?? item.Name);
+                        else await Cloud.MirrorAsync(path, target, $"{dateFolder}/{item.RemotePath ?? item.Name}", false, stamp, job.Excludes, log.Write, s => { sent = s.Bytes; ApplyStats(log, s); }, ct);
                     }
                     run.Total += sent;
                     Stage(log, "retention", item.Name);
-                    await Cloud.ApplyFolderRetentionAsync(target, baseFolder, job.Keep, job.KeepDays, log.Write, ct);
+                    await Cloud.ApplyFolderRetentionAsync(target, baseFolder, job.Keep, job.KeepDays, log.Write, ct, job.Sources.Count > 1 ? 3 : 2);
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception e)

@@ -8,6 +8,12 @@ public static class Validation
     public static void Check(Job j)
     {
         if (string.IsNullOrWhiteSpace(j.Name)) throw new ArgumentException("İş adı boş olamaz.");
+        if (j.Mode == "sync")
+        {
+            if (j.Sources.Count == 0 && j.SyncFromJob == 0) throw new ArgumentException("Eşitlenecek kaynağı seçin.");
+            if (j.Targets.Count == 0) throw new ArgumentException("En az bir hedef seçin.");
+            return;
+        }
         if (j.Mode == "database")
         {
             if (j.DbEngine != "sqlite" && string.IsNullOrWhiteSpace(j.DbServer)) throw new ArgumentException("Veritabanı sunucusunu yazın.");
@@ -44,6 +50,15 @@ public static class Validation
         if (target.StartsWith(source, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Hedef klasör, kaynak klasörle aynı veya onun içinde olamaz.");
     }
+}
+
+public static class JobModes
+{
+    /// <summary>Ekrandaki seçimi kayıt biçimine çevirir: sıkıştırma yalnızca istenirse uygulanır.</summary>
+    public static (string Mode, string DatedOutput) Map(bool dated, bool database, bool compress) =>
+        database ? ("database", "archive")
+        : dated ? ("dated", compress ? "archive" : "folder")
+        : (compress ? "archive" : "mirror", "archive");
 }
 
 public static class MoveEngine
