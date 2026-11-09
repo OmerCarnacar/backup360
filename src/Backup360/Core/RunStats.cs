@@ -31,7 +31,7 @@ public static class RunStats
         return starts.Select(s =>
         {
             var inside = dated.Where(x => x.When >= s && x.When < End(s)).Select(x => x.Run).ToList();
-            return new Bucket(Label(s), s, inside.Count(r => r.Status == "success"), inside.Count(r => r.Status is "failed" or "warning"), inside.Sum(r => r.Bytes));
+            return new Bucket(Label(s), s, inside.Count(r => r.Status == "success"), inside.Count(r => r.Status is "failed" or "warning" or "corrupt"), inside.Sum(r => r.Bytes));
         }).ToList();
     }
 

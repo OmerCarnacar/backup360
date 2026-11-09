@@ -62,6 +62,7 @@ public sealed class Job
     public List<string> DbNames { get; set; } = new();
     public string DbType { get; set; } = "full";      // full | diff | log
     public bool DbCopyOnly { get; set; } = true;
+    public bool DbRestoreTest { get; set; }   // Yedeği geçici veritabanına geri yükleyip CHECKDB çalıştır
     public string DbBackupDir { get; set; } = "";
     public string DbAgPolicy { get; set; } = "preferred";   // preferred | current
     public bool DbMultiSubnet { get; set; }
@@ -114,9 +115,32 @@ public static class Db
               started TEXT NOT NULL, ended TEXT, status TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', bytes INTEGER NOT NULL DEFAULT 0);
             CREATE INDEX IF NOT EXISTS ix_runs_ref ON runs(kind, ref_id, id);
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS backup_files(
+              target TEXT NOT NULL, base TEXT NOT NULL, path TEXT NOT NULL, job_id INTEGER NOT NULL, job_name TEXT NOT NULL,
+              size INTEGER NOT NULL, md5 TEXT NOT NULL, created TEXT NOT NULL, last_check TEXT, status TEXT NOT NULL DEFAULT 'unknown', detail TEXT NOT NULL DEFAULT '',
+              PRIMARY KEY(target, base, path));
             CREATE TABLE IF NOT EXISTS job_state(job_id INTEGER NOT NULL, item TEXT NOT NULL COLLATE NOCASE, fingerprint TEXT NOT NULL, PRIMARY KEY(job_id, item));
             """);
     }
+
+    private static string Now() => DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
+    public static void RecordBackup(string target, string folder, string path, long jobId, string jobName, long size, string md5) =>
+        Exec("INSERT OR REPLACE INTO backup_files(target,base,path,job_id,job_name,size,md5,created,status) VALUES($t,$b,$p,$j,$n,$s,$m,$c,'unknown')",
+            ("$t", target), ("$b", folder), ("$p", path), ("$j", jobId), ("$n", jobName), ("$s", size), ("$m", md5), ("$c", Now()));
+
+    public static void ForgetBackup(string target, string folder, string path) =>
+        Exec("DELETE FROM backup_files WHERE target=$t AND base=$b AND path=$p", ("$t", target), ("$b", folder), ("$p", path));
+
+    public static void ForgetMissingBackups() => Exec("DELETE FROM backup_files WHERE status='missing'");
+
+    public static void UpdateBackupCheck(BackupFile f, string status, string detail) =>
+        Exec("UPDATE backup_files SET last_check=$l,status=$s,detail=$d WHERE target=$t AND base=$b AND path=$p",
+            ("$l", Now()), ("$s", status), ("$d", detail), ("$t", f.Target), ("$b", f.Base), ("$p", f.Path));
+
+    public static List<BackupFile> BackupFiles() =>
+        Query("SELECT target,base,path,job_id,job_name,size,md5,created,last_check,status,detail FROM backup_files",
+            r => new BackupFile(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt64(3), r.GetString(4), r.GetInt64(5), r.GetString(6), r.GetString(7), r.IsDBNull(8) ? null : r.GetString(8), r.GetString(9), r.GetString(10)));
 
     public static string? GetFingerprint(long jobId, string item) =>
         Query("SELECT fingerprint FROM job_state WHERE job_id=$j AND item=$i", r => r.GetString(0), ("$j", jobId), ("$i", item)).FirstOrDefault();

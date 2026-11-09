@@ -26,6 +26,12 @@ public static class BackupRunner
         var started = DateTime.Now;
         try
         {
+            if (job.Mode != "database" && RansomGuard.Enabled && job.Sources.Count > 0)
+            {
+                Stage(log, "scan", "Fidye yazılımı kontrolü");
+                var guard = await Task.Run(() => RansomGuard.Scan(job.Sources, DateTime.Now.AddDays(-30), ct), ct);
+                if (guard.Alarm) throw new RansomwareException(RansomGuard.Describe(guard));
+            }
             outcome = job.Mode switch
             {
                 "mirror" => await MirrorAsync(job, log, ct),
@@ -39,6 +45,12 @@ public static class BackupRunner
         {
             log.Write("İptal edildi.");
             outcome = new Outcome("canceled", "Kullanıcı iptal etti", 0);
+            return outcome;
+        }
+        catch (RansomwareException e)
+        {
+            log.Write("DURDURULDU, fidye yazılımı şüphesi: " + e.Message);
+            outcome = new Outcome("ransomware", "Yedekleme durduruldu, hedefteki yedeklere dokunulmadı. " + e.Message, 0);
             return outcome;
         }
         catch (Exception e)
@@ -82,6 +94,16 @@ public static class BackupRunner
         await CheckTargetsAsync(job, ct);
         var pairs = SyncPlanner.Pairs(job);
         var stamp = Cloud.Stamp();
+        if (RansomGuard.Enabled)
+        {
+            Stage(log, "scan", "Toplu değişim kontrolü");
+            foreach (var pair in pairs.Where(p => Directory.Exists(p.Source)))
+            {
+                var diff = await SyncPlanner.DiffAsync(pair, job.Excludes, ct, sizeOnly: true);
+                if (RansomGuard.IsMassChange(diff))
+                    throw new RansomwareException($"{pair.Source}: dosyaların yarısından fazlası bir anda değişmiş veya kaybolmuş ({diff.Count(SyncPlanner.Changed)} değişen, {diff.Count(SyncPlanner.Extra)} kayıp, {diff.Count(SyncPlanner.Same)} aynı).");
+            }
+        }
         var errors = new List<string>();
         long total = 0;
         for (var i = 0; i < pairs.Count; i++)
@@ -307,13 +329,14 @@ public static class BackupRunner
         public int Step { get; set; }
         public long Total { get; set; }
         public bool Warnings { get; set; }
+        public bool Corrupt { get; set; }
         public List<string> Errors { get; } = new();
     }
 
     private static Outcome Finish(ItemRun run, string summary)
     {
-        var status = run.Errors.Count > 0 ? "failed" : run.Warnings ? "warning" : "success";
-        var detail = run.Errors.Count > 0 ? string.Join(" ; ", run.Errors.Take(5))
+        var status = run.Corrupt ? "corrupt" : run.Errors.Count > 0 ? "failed" : run.Warnings ? "warning" : "success";
+        var detail = run.Errors.Count > 0 ? (run.Corrupt ? "YEDEK BOZUK: " : "") + string.Join(" ; ", run.Errors.Take(5))
             : run.Warnings ? "Bazı öğeler alınamadı, ayrıntı günlükte."
             : summary;
         run.Log.Write($"Bitti: {status}");
@@ -346,13 +369,17 @@ public static class BackupRunner
 
                 Stage(log, "verify", label);
                 log.Write($"[{label}] doğrulanıyor ({size / 1048576.0:0.0} MB)...");
-                await Archiver.VerifyAsync(format, file, run.Password, ct, p => log.Update(l => l.Percent = p));
+                try { await Archiver.VerifyAsync(format, file, run.Password, ct, p => log.Update(l => l.Percent = p)); }
+                catch (Exception e) when (e is not OperationCanceledException) { throw new BackupCorruptException($"Arşiv bozuk, gönderilmedi: {e.Message}", e); }
 
+                var fingerprint = await Task.Run(() => BackupAudit.Md5Of(file), ct);
+                var relative = item.DateFolder == null ? Path.GetFileName(file) : $"{item.DateFolder}/{Path.GetFileName(file)}";
                 foreach (var target in job.Targets)
                 {
                     Stage(log, "upload", label);
                     log.Write($"[{label}] gönderiliyor: {target}:{folder}");
                     await Cloud.UploadAsync(file, target, folder, log.Write, s => ApplyStats(log, s), ct);
+                    Db.RecordBackup(target, run.BaseFolder, relative, job.Id, job.Name, size, fingerprint);
                     Stage(log, "retention", label);
                     await Cloud.ApplyRetentionAsync(target, run.BaseFolder, format.Extension, job.Keep, job.KeepDays, log.Write, ct);
                 }
@@ -364,6 +391,7 @@ public static class BackupRunner
             {
                 log.Write($"[{label}] HATA: {e.Message}");
                 run.Errors.Add($"{label}: {e.Message}");
+                run.Corrupt |= e is BackupCorruptException;
                 itemOk = false;
             }
             finally
@@ -388,6 +416,7 @@ public static class BackupRunner
         Stage(log, "scan", "Veritabanları listeleniyor");
         var plan = new List<(string Name, Func<Task<(string File, bool Remote)>> Produce)>();
         var warnings = false;
+        var restoreSkipped = false;
         var preErrors = new List<string>();
 
         void Note(DecisionKind kind, string db, string reason)
@@ -424,6 +453,27 @@ public static class BackupRunner
                             Stage(log, "sqlverify", db.Name);
                             log.Write($"[{db.Name}] RESTORE VERIFYONLY...");
                             await MsSql.VerifyAsync(job, path, p => log.Update(l => l.Percent = p), ct);
+                            if (job.DbRestoreTest && job.DbType == "full")
+                            {
+                                Stage(log, "sqlrestore", db.Name);
+                                log.Write($"[{db.Name}] geri yükleme sınavı ve DBCC CHECKDB...");
+                                try
+                                {
+                                    await MsSql.RestoreTestAsync(job, path, p => log.Update(l => l.Percent = p), ct);
+                                    log.Write($"[{db.Name}] geri yükleme ve CHECKDB temiz.");
+                                }
+                                catch (Microsoft.Data.SqlClient.SqlException e) when (!BackupHealth.IsCorruption(e))
+                                {
+                                    // Disk veya yetki yetersizliği yedeğin bozuk olduğunu göstermez; yine de kullanıcı bilmeli.
+                                    restoreSkipped = true;
+                                    log.Write($"  uyarı: {db.Name} geri yükleme sınavı yapılamadı: {e.Message}");
+                                }
+                            }
+                        }
+                        catch (Microsoft.Data.SqlClient.SqlException e) when (BackupHealth.IsCorruption(e))
+                        {
+                            TryDelete(path);
+                            throw new BackupCorruptException($"SQL Server yedeği bozuk, gönderilmedi: {e.Message}", e);
                         }
                         catch
                         {
@@ -456,6 +506,69 @@ public static class BackupRunner
                 }
                 break;
             }
+            case "postgres":
+            {
+                var names = job.DbAll ? await PostgresEngine.ListAsync(job, ct) : job.DbNames;
+                foreach (var db in names)
+                {
+                    var name = Cloud.SafeName(db);
+                    plan.Add((name, async () =>
+                    {
+                        var path = Path.Combine(work, $"{name}.dump");
+                        Stage(log, "sqlbackup", db);
+                        log.Write($"[{db}] pg_dump alınıyor...");
+                        await PostgresEngine.DumpAsync(job, db, path, ct);
+                        Stage(log, "sqlverify", db);
+                        await PostgresEngine.VerifyAsync(job, path, ct);
+                        if (job.DbRestoreTest)
+                        {
+                            Stage(log, "sqlrestore", db);
+                            log.Write($"[{db}] geri yükleme sınavı...");
+                            try
+                            {
+                                await PostgresEngine.RestoreTestAsync(job, path, ct);
+                                log.Write($"[{db}] geri yükleme sınavı temiz.");
+                            }
+                            catch (IOException e) when (e is not BackupCorruptException)
+                            {
+                                restoreSkipped = true;
+                                log.Write($"  uyarı: {db} geri yükleme sınavı yapılamadı: {e.Message}");
+                            }
+                        }
+                        return (path, false);
+                    }));
+                }
+                break;
+            }
+            case "firebird":
+                foreach (var source in job.DbNames)
+                {
+                    var name = Cloud.SafeName(Path.GetFileNameWithoutExtension(source));
+                    plan.Add((name, async () =>
+                    {
+                        var path = Path.Combine(work, $"{name}.fbk");
+                        Stage(log, "sqlbackup", source);
+                        log.Write($"[{name}] gbak alınıyor...");
+                        await FirebirdEngine.BackupAsync(job, source, path, ct);
+                        if (job.DbRestoreTest && FirebirdEngine.IsLocal(job))
+                        {
+                            Stage(log, "sqlrestore", source);
+                            log.Write($"[{name}] geri yükleme sınavı...");
+                            try
+                            {
+                                await FirebirdEngine.RestoreTestAsync(job, path, work, ct);
+                                log.Write($"[{name}] geri yükleme sınavı temiz.");
+                            }
+                            catch (IOException e) when (e is not BackupCorruptException)
+                            {
+                                restoreSkipped = true;
+                                log.Write($"  uyarı: {name} geri yükleme sınavı yapılamadı: {e.Message}");
+                            }
+                        }
+                        return (path, false);
+                    }));
+                }
+                break;
             default:
                 foreach (var source in job.DbNames)
                 {
@@ -480,6 +593,7 @@ public static class BackupRunner
             try
             {
                 (file, _) = await produce();
+                run.Warnings |= restoreSkipped;
                 await ProcessItemAsync(run, new Item(name, new List<string> { file }, today, null), ct);
             }
             catch (OperationCanceledException) { throw; }
@@ -487,6 +601,7 @@ public static class BackupRunner
             {
                 log.Write($"[{name}] HATA: {e.Message}");
                 run.Errors.Add($"{name}: {e.Message}");
+                run.Corrupt |= e is BackupCorruptException;
             }
             finally
             {

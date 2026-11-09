@@ -33,6 +33,12 @@ public static class Launcher
     public static void Start(string kind, long id) =>
         Process.Start(new ProcessStartInfo(AppPaths.ExePath, kind == "job" ? $"--run-job {id}" : $"--run-rule {id}") { UseShellExecute = false, CreateNoWindow = true });
 
+    public static void StartAudit(bool deep) =>
+        Process.Start(new ProcessStartInfo(AppPaths.ExePath, deep ? "--run-audit deep" : "--run-audit quick") { UseShellExecute = false, CreateNoWindow = true });
+
+    public static void StartGuard() =>
+        Process.Start(new ProcessStartInfo(AppPaths.ExePath, "--run-guard") { UseShellExecute = false, CreateNoWindow = true });
+
     public static void StartGroup(string group)
     {
         var psi = new ProcessStartInfo(AppPaths.ExePath) { UseShellExecute = false, CreateNoWindow = true };
@@ -55,6 +61,15 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length >= 3 && args[0] == "--alert")
+        {
+            var what = args.Length == 4 && args[3] == "ransom" ? "Kaynak klasörlerde fidye yazılımı (şifreleme) belirtisi bulundu. Yedekleme durduruldu; sağlam yedeklere dokunulmadı. Bilgisayarı ağdan ayırıp kontrol edin."
+                : args.Length == 4 ? "Hedefteki yedeklerde sorun bulundu." : $"{args[1]} işinin yedeği bozuk çıktı ve gönderilmedi.";
+            MessageBox.Show($"{what}\n\n{args[2]}\n\nAyrıntı için Backup360 Yedek Sağlığı ve Geçmiş sayfalarına bakın.", "Backup360: YEDEK BOZUK",
+                MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.DefaultDesktopOnly);
+            return 0;
+        }
+
         Db.Init();
         if (args.Length == 2 && long.TryParse(args[1], out var id))
         {
@@ -62,6 +77,8 @@ internal static class Program
             if (args[0] == "--run-rule") return Headless("rule", id);
         }
         if (args.Length == 2 && args[0] == "--run-group") return RunGroup(args[1]);
+        if (args.Length == 2 && args[0] == "--run-audit") return RunAudit(args[1] == "deep");
+        if (args.Length == 1 && args[0] == "--run-guard") return RunGuard();
 
         var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.InitializeComponent();
@@ -99,6 +116,35 @@ internal static class Program
         return code;
     }
 
+    /// <summary>Uyarı ayrı süreçte açılır: kullanıcı onaylayana kadar sonraki zamanlanmış yedekler engellenmez.</summary>
+    private static int RunGuard()
+    {
+        if (!RansomGuard.Enabled) return 0;
+        var result = RansomGuard.MonitorAsync(CancellationToken.None).GetAwaiter().GetResult();
+        if (result.Alarm) Alert("Fidye yazılımı koruması", RansomGuard.Describe(result), "ransom");
+        return result.Alarm ? 1 : 0;
+    }
+
+    private static int RunAudit(bool deep)
+    {
+        using var cts = new CancellationTokenSource();
+        using var ev = new EventWaitHandle(false, EventResetMode.AutoReset, Launcher.EventName("audit", 0));
+        ThreadPool.RegisterWaitForSingleObject(ev, (_, _) => cts.Cancel(), null, -1, true);
+        var outcome = BackupAudit.RunAsync(deep, null, cts.Token).GetAwaiter().GetResult();
+        if (outcome.Status == "corrupt") Alert("Yedek denetimi", outcome.Detail, "stored");
+        return outcome.Status is "success" or "skipped" ? 0 : 1;
+    }
+
+    private static void Alert(string name, string detail, string? kind = null)
+    {
+        var psi = new ProcessStartInfo(AppPaths.ExePath) { UseShellExecute = false };
+        psi.ArgumentList.Add("--alert");
+        psi.ArgumentList.Add(name);
+        psi.ArgumentList.Add(detail.Length > 400 ? detail[..400] + "..." : detail);
+        if (kind != null) psi.ArgumentList.Add(kind);
+        Process.Start(psi);
+    }
+
     private static int Headless(string kind, long id)
     {
         using var cts = new CancellationTokenSource();
@@ -107,7 +153,12 @@ internal static class Program
         try
         {
             if (kind == "job")
-                return BackupRunner.RunAsync(id, null, cts.Token).GetAwaiter().GetResult().Status is "success" or "warning" or "skipped" ? 0 : 1;
+            {
+                var outcome = BackupRunner.RunAsync(id, null, cts.Token).GetAwaiter().GetResult();
+                if (outcome.Status == "corrupt") Alert(Db.GetJob(id)?.Name ?? id.ToString(), outcome.Detail);
+                if (outcome.Status == "ransomware") Alert(Db.GetJob(id)?.Name ?? id.ToString(), outcome.Detail, "ransom");
+                return outcome.Status is "success" or "warning" or "skipped" ? 0 : 1;
+            }
             return MoveEngine.RunAsync(id, null, cts.Token).GetAwaiter().GetResult().Failed == 0 ? 0 : 1;
         }
         catch (Exception e)

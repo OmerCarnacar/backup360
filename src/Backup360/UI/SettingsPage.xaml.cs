@@ -31,6 +31,8 @@ public partial class SettingsPage
         ThemeBox.SelectedIndex = ThemeService.IsDark ? 0 : 1;
         _loading = false;
 
+        GuardOn.IsChecked = RansomGuard.Enabled;
+        GuardMinutes.Value = TaskPlanner.GuardMinutes;
         Users.ItemsSource = Auth.Users();
         DbPath.Text = AppPaths.Database;
         static string S(string? p) => p != null ? "hazır" : "bulunamadı";
@@ -52,6 +54,19 @@ public partial class SettingsPage
     {
         if (!_loading) ThemeService.Set(ThemeBox.SelectedIndex == 0, ThemeService.AccentKey);
     }
+
+    private void SaveGuard_Click(object sender, RoutedEventArgs e) => Ui.Guard(async () =>
+    {
+        await TaskPlanner.SaveGuardAsync(GuardOn.IsChecked == true, (int)(GuardMinutes.Value ?? 15));
+        GuardResult.Text = "Kaydedildi.";
+    });
+
+    private void ScanGuard_Click(object sender, RoutedEventArgs e) => Ui.Guard(async () =>
+    {
+        GuardResult.Text = "Taranıyor...";
+        var r = await Task.Run(() => RansomGuard.Scan(RansomGuard.JobSources(), DateTime.Now.AddDays(-30), CancellationToken.None));
+        GuardResult.Text = (r.Alarm ? "ŞÜPHE VAR. " : "Sorun bulunmadı. ") + r.Summary;
+    });
 
     private SmtpSettings ReadMail()
     {

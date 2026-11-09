@@ -70,7 +70,7 @@ public static class Tools
 
 public static class Proc
 {
-    public static Process Start(string exe, IEnumerable<string> args, bool pipeIn = false)
+    public static Process Start(string exe, IEnumerable<string> args, bool pipeIn = false, IDictionary<string, string>? env = null)
     {
         var psi = new ProcessStartInfo(exe)
         {
@@ -84,6 +84,7 @@ public static class Proc
             StandardErrorEncoding = Encoding.UTF8,
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
+        if (env != null) foreach (var (k, v) in env) psi.Environment[k] = v;
         return Process.Start(psi) ?? throw new InvalidOperationException($"{Path.GetFileName(exe)} başlatılamadı.");
     }
 
@@ -136,9 +137,9 @@ public static class Proc
     }
 
     /// <summary>Komutu çalıştırır, çıktısını satır satır toplar. İptalde süreci öldürür.</summary>
-    public static async Task<(int Code, string Output)> RunAsync(string exe, IEnumerable<string> args, Action<string>? log, CancellationToken ct, Action<int>? percent = null)
+    public static async Task<(int Code, string Output)> RunAsync(string exe, IEnumerable<string> args, Action<string>? log, CancellationToken ct, Action<int>? percent = null, IDictionary<string, string>? env = null)
     {
-        using var p = Start(exe, args);
+        using var p = Start(exe, args, env: env);
         using var reg = ct.Register(() => TryKill(p));
         var sb = new StringBuilder();
         await Task.WhenAll(PumpAsync(p.StandardOutput, sb, log, percent), PumpAsync(p.StandardError, sb, log, percent));

@@ -10,7 +10,8 @@
         </DataTemplate>
 
         <DataTemplate x:Key="CardTemplate">
-            <ui:Card Width="392" Margin="0,0,12,12" Padding="16" VerticalContentAlignment="Top">
+            <Border Style="{StaticResource HoverFrame}" Width="392" Margin="0,0,12,12">
+            <ui:Card Padding="16" VerticalContentAlignment="Top">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -84,6 +85,7 @@
                     </StackPanel>
                 </Grid>
             </ui:Card>
+            </Border>
         </DataTemplate>
     </UserControl.Resources>
 

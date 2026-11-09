@@ -54,6 +54,7 @@ public partial class DashboardPage
     public DashboardPage()
     {
         InitializeComponent();
+        _heroBrush = HeroBanner.Background;
         _live.Tick += (_, _) => RefreshLive();
         _clock.Tick += (_, _) => _upcoming.ForEach(u => u.Tick());
         _slow.Tick += (_, _) => Ui.Guard(RefreshAsync);
@@ -91,6 +92,7 @@ public partial class DashboardPage
     };
 
     private List<RunRecord> _runs = new();
+    private Brush? _heroBrush;
 
     private void Chart_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
@@ -133,7 +135,7 @@ public partial class DashboardPage
         var all = Db.RecentRuns(20000);
         _runs = all;
         var recent = all.Where(r => DateTime.TryParse(r.Started, out var d) && d > DateTime.Now.AddDays(-7)).ToList();
-        var failures = recent.Count(r => r.Status == "failed");
+        var failures = recent.Count(r => r.Status is "failed" or "corrupt");
         var allJobs = Db.Jobs();
         StatOk.Text = $"{allJobs.Count(j => j.Schedule.Type != "none")} / {allJobs.Count}";
         StatBad.Text = (await Cloud.ListTargetsAsync()).Count.ToString();
@@ -150,6 +152,8 @@ public partial class DashboardPage
             new StatusRow(WUI.SymbolRegular.PlayCircle24, Fmt.Indigo, "Çalışıyor", Of("running")),
             new StatusRow(WUI.SymbolRegular.CheckmarkCircle24, Fmt.Success, "Başarılı", Of("success")),
             new StatusRow(WUI.SymbolRegular.Warning24, Fmt.Warning, "Uyarılı", Of("warning")),
+            new StatusRow(WUI.SymbolRegular.ShieldError24, Fmt.Danger, "Yedek bozuk", Of("corrupt")),
+            new StatusRow(WUI.SymbolRegular.LockClosed24, Fmt.Danger, "Fidye şüphesi", Of("ransomware")),
             new StatusRow(WUI.SymbolRegular.DismissCircle24, Fmt.Danger, "Hatalı", Of("failed")),
             new StatusRow(WUI.SymbolRegular.Prohibited24, Fmt.Neutral, "İptal edildi", Of("canceled")),
             new StatusRow(WUI.SymbolRegular.Circle24, Fmt.Neutral, "Henüz çalışmadı", Of("none")),
@@ -168,7 +172,7 @@ public partial class DashboardPage
         var feed = all.Take(4).Select(r =>
         {
             var (label, brush) = Fmt.Status(r.Status);
-            var icon = r.Status switch { "success" => WUI.SymbolRegular.CheckmarkCircle24, "failed" => WUI.SymbolRegular.DismissCircle24, "warning" => WUI.SymbolRegular.Warning24, _ => WUI.SymbolRegular.Circle24 };
+            var icon = r.Status switch { "success" => WUI.SymbolRegular.CheckmarkCircle24, "corrupt" => WUI.SymbolRegular.ShieldError24, "failed" => WUI.SymbolRegular.DismissCircle24, "warning" => WUI.SymbolRegular.Warning24, _ => WUI.SymbolRegular.Circle24 };
             return new FeedItem(icon, brush, r.Name, label, r.Started.Length >= 16 ? r.Started[5..16] : r.Started);
         }).ToList();
         Feed.ItemsSource = feed;
@@ -186,6 +190,22 @@ public partial class DashboardPage
 
         var next = _upcoming.FirstOrDefault(u => u.SortKey != DateTime.MaxValue);
         var nextText = next != null ? $"Sıradaki: {next.Name}, {next.Remaining}" : "Zamanlanmış çalışma yok";
+        if (!string.IsNullOrEmpty(Db.GetSetting("guard_alert")) || lastStatus.Contains("ransomware"))
+        {
+            SetHero("FİDYE YAZILIMI ŞÜPHESİ", "Yedekleme durduruldu, sağlam yedeklere dokunulmadı. Kaynak klasörleri kontrol edin.", WUI.SymbolRegular.ShieldError24);
+            HeroBanner.Background = Fmt.Danger;
+            return;
+        }
+        var corrupted = allJobs.Where((_, i) => lastStatus[i] == "corrupt").Select(j => j.Name).ToList();
+        if (Db.LastRun("audit", 0)?.Status == "corrupt") corrupted.Add("hedefteki yedekler");
+        if (corrupted.Count > 0)
+        {
+            SetHero($"YEDEK BOZUK: {string.Join(", ", corrupted.Take(3))}", "Ayrıntılar için Yedek Sağlığı ve Geçmiş sayfalarına bakın.", WUI.SymbolRegular.ShieldError24);
+            HeroBanner.Background = Fmt.Danger;
+            return;
+        }
+        HeroBanner.ClearValue(System.Windows.Controls.Border.BackgroundProperty);
+        HeroBanner.Background = _heroBrush;
         if (failures > 0) SetHero($"{failures} çalışma hata verdi", "Ayrıntılar için Geçmiş sayfasına bakın  ·  " + nextText, WUI.SymbolRegular.Warning24);
         else if (jobs.Count == 0) SetHero("Hoş geldiniz", "Başlamak için bir hedef tanımlayın ve ilk yedekleme işinizi oluşturun", WUI.SymbolRegular.Rocket24);
         else SetHero("Yedekleriniz sağlıklı", "Son 7 günde hata yok  ·  " + nextText, WUI.SymbolRegular.ShieldCheckmark24);

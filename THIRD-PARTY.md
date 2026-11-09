@@ -12,5 +12,6 @@ Backup360 aşağıdaki bileşenleri kullanır. Bu bileşenler Backup360 lisansı
 | MailKit, MimeKit | E-posta bildirimi | MIT | https://github.com/jstedfast/MailKit |
 | WPF-UI | Fluent arayüz bileşenleri | MIT | https://github.com/lepoco/wpfui |
 | LiveCharts2, SkiaSharp | Grafikler | MIT | https://github.com/beto-rodriguez/LiveCharts2 |
+| Simple Icons | Veritabanı logoları | CC0 | https://simpleicons.org |
 
-WinRAR, WinFsp ve MySQL istemci araçları Backup360 ile dağıtılmaz. Disk olarak bağlama için bilgisayarda WinFsp (https://winfsp.dev) gerekir. `rar` formatı için lisanslı WinRAR, MySQL/MariaDB yedeği için bilgisayarda `mysqldump` gerekir.
+WinRAR, WinFsp ve MySQL, PostgreSQL, Firebird istemci araçları Backup360 ile dağıtılmaz. Ürün logoları ilgili şirketlerin ticari markalarıdır ve yalnızca hizmeti tanıtmak için kullanılır. Disk olarak bağlama için bilgisayarda WinFsp (https://winfsp.dev) gerekir. `rar` formatı için lisanslı WinRAR, MySQL/MariaDB yedeği için bilgisayarda `mysqldump` gerekir.

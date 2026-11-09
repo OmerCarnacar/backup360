@@ -15,7 +15,7 @@
         </DataTemplate>
     </Page.Resources>
     <StackPanel Margin="24,8,24,16">
-        <Border CornerRadius="8" Height="88" ClipToBounds="True">
+        <Border x:Name="HeroBanner" CornerRadius="8" Height="88" ClipToBounds="True">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4">
                     <GradientStop Color="#0F172A" Offset="0" />

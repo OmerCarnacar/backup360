@@ -1,6 +1,20 @@
 ## Yeni sürüm
 
 ### Eklendi
+- **PostgreSQL ve Firebird** yedekleme
+- **Fidye yazılımı koruması:** Şifrelenme belirtisi veya toplu değişimde yedek ve eşitleme durur, e-posta ve ekran uyarısı verilir
+- **Yedek Sağlığı:** Hedefteki yedeklerin düzenli denetimi, eksik ve bozuk dosya bildirimi
+- **Geri yükleme sınavı:** Yedek geçici veritabanına geri yüklenir, SQL Server'da `DBCC CHECKDB` çalışır
+- **"Yedek bozuk" durumu:** Bozuk yedek gönderilmez, ayrı e-posta ve ekran uyarısı verilir
+- SQL Server güvenlik uyarıları (`sa`, `xp_cmdshell`)
+- SQL motor logoları, turuncu seçili menü, kartlarda hover efekti
+
+### Önemli
+Bu sürümde hazır Google bağlantısı yoktur. Google Drive için **kendi Client ID'nizi** girmeniz gerekir; adımlar README'de.
+
+## 2026.11.09.1503
+
+### Eklendi
 - **Gelişmiş pano:** Günlük, haftalık ve aylık aktarım grafiği; geçerli iş durumu; en büyük ve en uzun süren işler
 - **SQL Server taraması:** Bu bilgisayardaki ve yerel ağdaki örnekleri listeleme; varsayılan port 1433
 - **Gün bazlı yedekte klasör yapısı:** İş / Tarih / Klasör / Alt klasörler

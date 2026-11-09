@@ -49,7 +49,7 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,4">
                             <ui:SymbolIcon Symbol="Database24" Foreground="#67E8F9" Margin="0,0,10,0" />
-                            <TextBlock Text="SQL Server, Always On, MySQL, SQLite" Foreground="#E2E8F0" />
+                            <TextBlock Text="SQL Server, MySQL, PostgreSQL, Firebird, SQLite" Foreground="#E2E8F0" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,4">
                             <ui:SymbolIcon Symbol="Cloud24" Foreground="#67E8F9" Margin="0,0,10,0" />

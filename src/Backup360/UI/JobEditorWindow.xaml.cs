@@ -7,7 +7,8 @@ namespace Backup360.UI;
 
 public partial class JobEditorWindow
 {
-    private static readonly string[] Engines = { "mssql", "mysql", "sqlite" };
+    private static readonly (string Key, string Label)[] EngineList = { ("mssql", "SQL Server"), ("mysql", "MySQL / MariaDB"), ("postgres", "PostgreSQL"), ("firebird", "Firebird"), ("sqlite", "SQLite") };
+    private static readonly string[] Engines = EngineList.Select(e => e.Key).ToArray();
     private static readonly string[] DbTypes = { "full", "diff", "log" };
     private readonly Job _job;
     private readonly ScheduleEditor _schedule;
@@ -51,6 +52,13 @@ public partial class JobEditorWindow
         _schedule = new ScheduleEditor(job.Schedule);
         ScheduleHost.Content = _schedule;
 
+        foreach (var (key, label) in EngineList)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(new Image { Source = Brand.ForDb(key), Width = 18, Height = 18, Margin = new Thickness(0, 0, 8, 0) });
+            row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+            DbEngine.Items.Add(row);
+        }
         DbEngine.SelectedIndex = Math.Max(0, Array.IndexOf(Engines, job.DbEngine));
         DbServer.Text = job.DbServer;
         DbServer.PlaceholderText = @"SUNUCU\ORNEK";
@@ -62,6 +70,7 @@ public partial class JobEditorWindow
         foreach (var n in job.DbNames) AddDb(n, n, true);
         DbType.SelectedIndex = Math.Max(0, Array.IndexOf(DbTypes, job.DbType));
         DbCopyOnly.IsChecked = job.DbCopyOnly;
+        DbRestoreTest.IsChecked = job.DbRestoreTest;
         DbDir.Text = job.DbBackupDir;
         DbAg.SelectedIndex = job.DbAgPolicy == "current" ? 1 : 0;
         DbSubnet.IsChecked = job.DbMultiSubnet;
@@ -95,8 +104,8 @@ public partial class JobEditorWindow
     /// <summary>Motor değişince standart portu önerir; elle yazılmış farklı porta dokunmaz.</summary>
     private void Engine_Changed(object sender, SelectionChangedEventArgs e)
     {
-        if (_ready && DbPort.Value is 0 or 1433 or 3306 or null)
-            DbPort.Value = Engine switch { "mssql" => 1433, "mysql" => 3306, _ => 0 };
+        if (_ready && DbPort.Value is 0 or 1433 or 3306 or 5432 or 3050 or null)
+            DbPort.Value = Engine switch { "mssql" => 1433, "mysql" => 3306, "postgres" => 5432, "firebird" => 3050, _ => 0 };
         Sync();
     }
 
@@ -131,12 +140,14 @@ public partial class JobEditorWindow
         var mssql = Engine == "mssql";
         DbServer.IsEnabled = DbPort.IsEnabled = !sqlite;
         DbAuth.IsEnabled = ScanButton.IsEnabled = mssql;
-        var login = Engine == "mysql" || (mssql && DbAuth.SelectedIndex == 1);
+        var fileBased = sqlite || Engine == "firebird";
+        AddFileButton.IsEnabled = fileBased;
+        var login = Engine is "mysql" or "postgres" or "firebird" || (mssql && DbAuth.SelectedIndex == 1);
         DbUser.IsEnabled = DbPassword.IsEnabled = login;
-        DbAll.IsEnabled = !sqlite;
-        DbList.IsEnabled = sqlite || DbAll.IsChecked != true;
+        DbAll.IsEnabled = !fileBased;
+        DbList.IsEnabled = fileBased || DbAll.IsChecked != true;
         SqlOptions.Visibility = mssql ? Visibility.Visible : Visibility.Collapsed;
-        DbCopyOnly.IsEnabled = DbType.SelectedIndex == 0;
+        DbCopyOnly.IsEnabled = DbRestoreTest.IsEnabled = DbType.SelectedIndex == 0;
     }
 
     private void AddSource(string path)
@@ -172,7 +183,7 @@ public partial class JobEditorWindow
         j.DbEngine = Engine;
         j.DbServer = DbServer.Text.Trim();
         j.DbPort = (int)(DbPort.Value ?? 0);
-        j.DbAuth = DbAuth.SelectedIndex == 1 || Engine == "mysql" ? "sql" : "windows";
+        j.DbAuth = DbAuth.SelectedIndex == 1 || Engine != "mssql" ? "sql" : "windows";
         j.DbUser = DbUser.Text.Trim();
         j.DbPasswordEnc = DbPassword.Password.Length > 0 ? Secrets.Protect(DbPassword.Password) : _job.DbPasswordEnc;
         j.DbMultiSubnet = DbSubnet.IsChecked == true;
@@ -192,6 +203,9 @@ public partial class JobEditorWindow
                 DbList.Children.Clear();
                 foreach (var d in all) AddDb(d.Name, d.Label, chosen.Contains(d.Name));
                 DbMessage.Text = $"{all.Count} veritabanı, {all.Count(d => d.InAg)} tanesi Always On'da.";
+                var notes = await MsSql.SecurityNotesAsync(probe, CancellationToken.None);
+                DbSecurity.Message = string.Join(" ", notes);
+                DbSecurity.IsOpen = notes.Count > 0;
             }
             else if (Engine == "mysql")
             {
@@ -200,7 +214,14 @@ public partial class JobEditorWindow
                 foreach (var n in all) AddDb(n, n, chosen.Contains(n));
                 DbMessage.Text = $"{all.Count} veritabanı.";
             }
-            else DbMessage.Text = "SQLite için dosya ekleyin.";
+            else if (Engine == "postgres")
+            {
+                var all = await PostgresEngine.ListAsync(probe, CancellationToken.None);
+                DbList.Children.Clear();
+                foreach (var n in all) AddDb(n, n, chosen.Contains(n));
+                DbMessage.Text = $"{all.Count} veritabanı.";
+            }
+            else DbMessage.Text = "Bu motor için veritabanı dosyasını ekleyin.";
         }
         catch (Exception x) when (x is Microsoft.Data.SqlClient.SqlException or IOException or InvalidOperationException)
         {
@@ -211,7 +232,7 @@ public partial class JobEditorWindow
 
     private void AddSqlite_Click(object sender, RoutedEventArgs e)
     {
-        var d = new OpenFileDialog { Multiselect = true, Title = "SQLite veritabanları", Filter = "SQLite|*.db;*.sqlite;*.sqlite3;*.db3|Tüm dosyalar|*.*" };
+        var d = new OpenFileDialog { Multiselect = true, Title = "Veritabanı dosyaları", Filter = "Veritabanı|*.db;*.sqlite;*.sqlite3;*.db3;*.fdb;*.gdb|Tüm dosyalar|*.*" };
         if (d.ShowDialog(this) == true) foreach (var f in d.FileNames) AddDb(f, f, true);
     }
 
@@ -239,10 +260,11 @@ public partial class JobEditorWindow
             _job.KeepDays = (int)(KeepDays.Value ?? 0);
             _job.Schedule = _schedule.Value;
             ApplyDb(_job);
-            _job.DbAll = DbAll.IsChecked == true && Engine != "sqlite";
+            _job.DbAll = DbAll.IsChecked == true && Engine is not ("sqlite" or "firebird");
             _job.DbNames = DbList.Children.OfType<CheckBox>().Where(c => c.IsChecked == true).Select(c => (string)c.Tag).ToList();
             _job.DbType = DbTypes[Math.Max(0, DbType.SelectedIndex)];
             _job.DbCopyOnly = DbCopyOnly.IsChecked == true;
+            _job.DbRestoreTest = DbRestoreTest.IsChecked == true;
             _job.DbBackupDir = DbDir.Text.Trim();
             _job.DbAgPolicy = DbAg.SelectedIndex == 1 ? "current" : "preferred";
             Core.Validation.Check(_job);

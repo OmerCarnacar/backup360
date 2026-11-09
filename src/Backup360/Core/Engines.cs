@@ -17,9 +17,9 @@ public static class Validation
         if (j.Mode == "database")
         {
             if (j.DbEngine != "sqlite" && string.IsNullOrWhiteSpace(j.DbServer)) throw new ArgumentException("Veritabanı sunucusunu yazın.");
-            if (j.DbEngine == "mysql" && string.IsNullOrWhiteSpace(j.DbUser)) throw new ArgumentException("MySQL kullanıcı adını yazın.");
-            if ((j.DbEngine == "sqlite" || !j.DbAll) && j.DbNames.Count == 0) throw new ArgumentException("En az bir veritabanı seçin.");
-            var stems = j.DbEngine == "sqlite" ? j.DbNames.Select(Path.GetFileNameWithoutExtension) : j.DbNames;
+            if (j.DbEngine is "mysql" or "postgres" or "firebird" && string.IsNullOrWhiteSpace(j.DbUser)) throw new ArgumentException("Veritabanı kullanıcı adını yazın.");
+            if ((j.DbEngine is "sqlite" or "firebird" || !j.DbAll) && j.DbNames.Count == 0) throw new ArgumentException("En az bir veritabanı seçin.");
+            var stems = j.DbEngine is "sqlite" or "firebird" ? j.DbNames.Select(Path.GetFileNameWithoutExtension) : j.DbNames;
             if (stems.GroupBy(s => Cloud.SafeName(s ?? ""), StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1) is { } clash)
                 throw new ArgumentException($"Aynı ada sahip iki veritabanı seçilemez: {clash.Key}");
         }
@@ -318,6 +318,43 @@ public static class TaskPlanner
         return map;
     }
 
+    public const string AuditTask = "Backup360-Saglik";
+
+    public static Schedule AuditSchedule() =>
+        Db.GetSetting("audit_schedule") is { } json ? System.Text.Json.JsonSerializer.Deserialize<Schedule>(json) ?? new() : new Schedule { Type = "weekly", Days = "Sunday", Time = "03:00" };
+
+    private static Task ApplyAuditAsync() =>
+        ApplyAsync(AuditTask, Db.GetSetting("audit_deep") == "1" ? "--run-audit deep" : "--run-audit quick", AuditSchedule());
+
+    public static async Task SaveAuditAsync(Schedule schedule, bool deep)
+    {
+        Db.SetSetting("audit_schedule", System.Text.Json.JsonSerializer.Serialize(schedule));
+        Db.SetSetting("audit_deep", deep ? "1" : "0");
+        await ApplyAuditAsync();
+    }
+
+    public const string GuardTask = "Backup360-Koruma";
+
+    public static int GuardMinutes => int.TryParse(Db.GetSetting("guard_minutes"), out var m) && m > 0 ? m : 15;
+
+    public static async Task SaveGuardAsync(bool enabled, int minutes)
+    {
+        Db.SetSetting("guard_enabled", enabled ? "1" : "0");
+        Db.SetSetting("guard_minutes", Math.Max(1, minutes).ToString());
+        await ApplyAsync(GuardTask, "--run-guard", enabled ? new Schedule { Type = "minutes", Interval = Math.Max(1, minutes) } : new Schedule());
+    }
+
+    public static async Task EnsureGuardAsync()
+    {
+        if (Db.GetSetting("guard_minutes") == null) await SaveGuardAsync(true, 15);
+    }
+
+    /// <summary>İlk açılışta haftalık hızlı denetimi kurar.</summary>
+    public static async Task EnsureAuditAsync()
+    {
+        if (Db.GetSetting("audit_schedule") == null) await SaveAuditAsync(AuditSchedule(), false);
+    }
+
     public static Task ApplyAsync(Job j) => ApplyAsync(JobTask(j.Id), $"--run-job {j.Id}", j.Schedule);
     public static Task ApplyAsync(MoveRule r) => ApplyAsync(RuleTask(r.Id), $"--run-rule {r.Id}", r.Schedule);
 
@@ -327,6 +364,8 @@ public static class TaskPlanner
         if (string.Equals(Db.GetSetting("exe_path"), AppPaths.ExePath, StringComparison.OrdinalIgnoreCase)) return;
         foreach (var j in Db.Jobs()) await ApplyAsync(j);
         foreach (var r in Db.Rules()) await ApplyAsync(r);
+        if (Db.GetSetting("audit_schedule") != null) await ApplyAuditAsync();
+        if (Db.GetSetting("guard_minutes") != null) await SaveGuardAsync(RansomGuard.Enabled, GuardMinutes);
         Db.SetSetting("exe_path", AppPaths.ExePath);
     }
 }

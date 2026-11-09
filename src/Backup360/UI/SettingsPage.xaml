@@ -56,6 +56,21 @@
             </StackPanel>
         </ui:Card>
 
+        <TextBlock Text="Fidye yazılımı koruması" Style="{StaticResource Section}" />
+        <ui:Card Padding="18" VerticalContentAlignment="Top">
+            <StackPanel>
+                <ui:ToggleSwitch x:Name="GuardOn" Content="Kaynaklarda şifrelenme belirtisi görülürse yedeklemeyi durdur ve uyar" />
+                <TextBlock Text="Şüpheli uzantı, fidye notu ve içeriği şifrelenmiş görünen dosyaları arar. Şüphe varsa hedefteki sağlam yedeklere dokunulmaz, e-posta ve ekran uyarısı verilir." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                    <TextBlock Text="Kontrol sıklığı (dakika)" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ui:NumberBox x:Name="GuardMinutes" Minimum="1" Maximum="1440" Width="130" Margin="0,0,10,0" />
+                    <ui:Button Content="Kaydet" Icon="{ui:SymbolIcon Save24}" Appearance="Primary" Margin="0,0,8,0" Click="SaveGuard_Click" />
+                    <ui:Button Content="Şimdi tara" Icon="{ui:SymbolIcon ShieldCheckmark24}" Click="ScanGuard_Click" />
+                </StackPanel>
+                <TextBlock x:Name="GuardResult" Margin="0,10,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+        </ui:Card>
+
         <TextBlock Text="Kullanıcılar" Style="{StaticResource Section}" />
         <ui:Card Padding="18">
             <StackPanel>

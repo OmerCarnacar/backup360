@@ -16,6 +16,7 @@ public static class ThemeService
     public static readonly (string Key, string Label, Color Color)[] Accents =
     {
         ("indigo", "İndigo", Color.FromRgb(79, 70, 229)),
+        ("turuncu", "Turuncu", Color.FromRgb(234, 88, 12)),
         ("mavi", "Mavi", Color.FromRgb(0, 120, 212)),
         ("turkuaz", "Turkuaz", Color.FromRgb(8, 145, 178)),
         ("yesil", "Yeşil", Color.FromRgb(5, 150, 105)),
@@ -84,6 +85,8 @@ public static class Fmt
     {
         "success" => ("Başarılı", Success),
         "warning" => ("Uyarılı", Warning),
+        "corrupt" => ("Yedek bozuk", Danger),
+        "ransomware" => ("Fidye şüphesi", Danger),
         "failed" => ("Hata", Danger),
         "canceled" => ("İptal", Neutral),
         "skipped" => ("Atlandı", Neutral),
@@ -118,7 +121,7 @@ public sealed class LiveCardVm(ICommand? stop = null) : Observable
     private static readonly Dictionary<string, string> Stages = new()
     {
         ["scan"] = "Karşılaştırılıyor", ["archive"] = "Sıkıştırılıyor", ["verify"] = "Arşiv doğrulanıyor", ["upload"] = "Aktarılıyor",
-        ["retention"] = "Eski yedekler temizleniyor", ["sqlbackup"] = "Veritabanı yedekleniyor", ["sqlverify"] = "Yedek doğrulanıyor", ["move"] = "Taşınıyor",
+        ["retention"] = "Eski yedekler temizleniyor", ["sqlbackup"] = "Veritabanı yedekleniyor", ["sqlverify"] = "Yedek doğrulanıyor", ["sqlrestore"] = "Geri yükleme sınavı ve CHECKDB", ["move"] = "Taşınıyor",
     };
 
     private Visibility _visibility = Visibility.Collapsed;

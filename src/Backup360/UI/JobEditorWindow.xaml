@@ -46,7 +46,7 @@
                             </StackPanel>
                             <CheckBox x:Name="OnlyChanged" Content="Yalnızca son gönderimden sonra değişen klasörleri gönder" Margin="0,8,0,0" />
                         </StackPanel>
-                        <RadioButton x:Name="DbMode" GroupName="m" Content="Veritabanı yedeği: SQL Server (Always On dahil), MySQL/MariaDB, SQLite" Checked="AnyChanged" />
+                        <RadioButton x:Name="DbMode" GroupName="m" Content="Veritabanı yedeği: SQL Server (Always On dahil), MySQL/MariaDB, PostgreSQL, Firebird, SQLite" Checked="AnyChanged" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
@@ -105,7 +105,7 @@
                     <StackPanel x:Name="DbPanel" Margin="8,14,18,14">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="12" /><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition Width="150" /></Grid.ColumnDefinitions>
-                            <StackPanel><TextBlock Text="Motor" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" /><ComboBox x:Name="DbEngine" SelectionChanged="Engine_Changed"><ComboBoxItem Content="SQL Server" /><ComboBoxItem Content="MySQL / MariaDB" /><ComboBoxItem Content="SQLite" /></ComboBox></StackPanel>
+                            <StackPanel><TextBlock Text="Motor" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" /><ComboBox x:Name="DbEngine" SelectionChanged="Engine_Changed" /></StackPanel>
                             <StackPanel Grid.Column="2"><TextBlock Text="Sunucu veya Always On dinleyicisi" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" /><ui:TextBox x:Name="DbServer" /></StackPanel>
                             <StackPanel Grid.Column="4"><TextBlock Text="Port" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" /><ui:NumberBox x:Name="DbPort" Minimum="0" Maximum="65535" /></StackPanel>
                         </Grid>
@@ -115,6 +115,7 @@
                             <StackPanel Grid.Column="2"><TextBlock Text="Kullanıcı" Style="{StaticResource FieldLabel}" /><ui:TextBox x:Name="DbUser" /></StackPanel>
                             <StackPanel Grid.Column="4"><TextBlock Text="Parola" Style="{StaticResource FieldLabel}" /><ui:PasswordBox x:Name="DbPassword" /></StackPanel>
                         </Grid>
+                        <ui:InfoBar x:Name="DbSecurity" Title="Güvenlik uyarısı" IsOpen="False" IsClosable="True" Severity="Warning" Margin="0,12,0,0" />
                         <CheckBox x:Name="DbAll" Content="Tüm kullanıcı veritabanları (yeni eklenenler otomatik dahil)" Margin="0,14,0,6" Checked="AnyChanged" Unchecked="AnyChanged" />
                         <Border BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" CornerRadius="6" Height="108">
                             <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel x:Name="DbList" Margin="8,4" /></ScrollViewer>
@@ -122,7 +123,7 @@
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                             <ui:Button x:Name="ScanButton" Content="Sunucuları tara" Icon="{ui:SymbolIcon Search24}" Margin="0,0,8,0" Click="Scan_Click" />
                             <ui:Button Content="Bağlan ve listele" Icon="{ui:SymbolIcon PlugConnected24}" Margin="0,0,8,0" Click="LoadDatabases_Click" />
-                            <ui:Button Content="SQLite dosyası ekle" Icon="{ui:SymbolIcon DocumentAdd24}" Click="AddSqlite_Click" />
+                            <ui:Button x:Name="AddFileButton" Content="Veritabanı dosyası ekle" Icon="{ui:SymbolIcon DocumentAdd24}" Click="AddSqlite_Click" />
                             <TextBlock x:Name="DbMessage" VerticalAlignment="Center" Margin="12,0,0,0" Style="{StaticResource Muted}" />
                         </StackPanel>
                         <StackPanel x:Name="SqlOptions">
@@ -130,6 +131,9 @@
                                 <StackPanel Margin="0,0,18,0"><TextBlock Text="Yedek türü" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" /><ComboBox x:Name="DbType" Width="200" SelectionChanged="AnySelection"><ComboBoxItem Content="Tam (Full)" /><ComboBoxItem Content="Fark (Differential)" /><ComboBoxItem Content="Günlük (Log)" /></ComboBox></StackPanel>
                                 <CheckBox x:Name="DbCopyOnly" Content="Tam yedek COPY__ONLY olsun (mevcut yedek planınızı bozmaz)" VerticalAlignment="Bottom" Margin="0,0,0,4" />
                             </StackPanel>
+                            <CheckBox x:Name="DbRestoreTest" Margin="0,10,0,0">
+                                <TextBlock Text="Geri yükleyerek sına ve DBCC CHECKDB çalıştır (en güvenli yöntem; süre ve geçici olarak veritabanı kadar disk alanı gerekir)" TextWrapping="Wrap" />
+                            </CheckBox>
                             <TextBlock Text="Yedek klasörü (SQL Server'ın yazabildiği; uzak sunucuda UNC yolu. Boşsa sunucu varsayılanı)" Style="{StaticResource FieldLabel}" />
                             <ui:TextBox x:Name="DbDir" />
                             <TextBlock Text="Always On yedek replikası" Style="{StaticResource FieldLabel}" />

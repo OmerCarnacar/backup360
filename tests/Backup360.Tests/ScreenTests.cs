@@ -134,6 +134,7 @@ public class ScreenTests
         Page(typeof(SqlBackupPage), "sql-yedek.png");
         Page(typeof(SqlSyncPage), "sql-esitleme.png");
         Page(typeof(LogPage), "gunluk.png");
+        Page(typeof(HealthPage), "saglik.png");
         Page(typeof(RulesPage), "kurallar.png");
         Page(typeof(TargetsPage), "hedefler.png");
         Page(typeof(HistoryPage), "gecmis.png");

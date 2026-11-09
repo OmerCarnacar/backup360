@@ -15,9 +15,10 @@ public sealed class ActivityView : UserControl
     {
         ["archive"] = new[] { ("archive", "Sıkıştır"), ("verify", "Doğrula"), ("upload", "Gönder"), ("retention", "Temizle") },
         ["dated"] = new[] { ("scan", "Tara"), ("archive", "Sıkıştır"), ("verify", "Doğrula"), ("upload", "Gönder"), ("retention", "Temizle") },
-        ["database"] = new[] { ("scan", "Listele"), ("sqlbackup", "DB yedeği"), ("sqlverify", "DB doğrula"), ("archive", "Sıkıştır"), ("verify", "Doğrula"), ("upload", "Gönder"), ("retention", "Temizle") },
+        ["database"] = new[] { ("scan", "Listele"), ("sqlbackup", "DB yedeği"), ("sqlverify", "DB doğrula"), ("sqlrestore", "Geri yükle"), ("archive", "Sıkıştır"), ("verify", "Doğrula"), ("upload", "Gönder"), ("retention", "Temizle") },
         ["mirror"] = new[] { ("scan", "Hazırla"), ("upload", "Gönder") },
         ["sync"] = new[] { ("scan", "Karşılaştır"), ("upload", "Farkları aktar") },
+        ["audit"] = new[] { ("scan", "Hedefleri karşılaştır"), ("audit", "İndir ve aç") },
         ["move"] = new[] { ("scan", "Yeni dosya bul"), ("move", "Taşı") },
     };
 

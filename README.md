@@ -5,7 +5,7 @@
 # Backup360
 
 **Dosya, klasör ve veritabanlarınızı en yüksek sıkıştırmayla buluta yedekler**
-_Tüm arşiv formatları · SQL Server, Always On, MySQL, SQLite · Zamanlama · Canlı pano_
+_Tüm arşiv formatları · SQL Server, Always On, MySQL, PostgreSQL, Firebird, SQLite · Fidye yazılımı koruması_
 
 [![Son sürüm](https://img.shields.io/github/v/release/OmerCarnacar/backup360?label=s%C3%BCr%C3%BCm&color=4f46e5)](https://github.com/OmerCarnacar/backup360/releases/latest)
 [![İndirme](https://img.shields.io/github/downloads/OmerCarnacar/backup360/total?label=indirme&color=0ea5e9)](https://github.com/OmerCarnacar/backup360/releases)
@@ -29,7 +29,10 @@ _Tüm arşiv formatları · SQL Server, Always On, MySQL, SQLite · Zamanlama ·
 | | |
 |---|---|
 | 🗜️ **Tüm arşiv formatları** | 7z, zip, rar, tar, tar.gz, tar.bz2, tar.xz, tar.zst, wim. Aynı anda birden çok format seçilebilir. Varsayılan seviye en yüksektir. |
-| 🛢️ **Veritabanı yedeği** | SQL Server (Full, Differential, Log), MySQL/MariaDB ve SQLite. Her yedek doğrulanır, sıkıştırılır ve gönderilir. |
+| 🛢️ **Veritabanı yedeği** | SQL Server (Full, Differential, Log), MySQL/MariaDB, PostgreSQL, Firebird ve SQLite. Her yedek doğrulanır, sıkıştırılır ve gönderilir. |
+| 🧪 **Geri yükleme sınavı** | SQL Server, PostgreSQL ve Firebird yedekleri geçici veritabanına geri yüklenerek sınanır; SQL Server'da `DBCC CHECKDB` çalışır. |
+| 🩺 **Yedek Sağlığı** | Hedefteki yedeklerin parmak izi düzenli denetlenir, eksik veya bozulan dosya bildirilir. |
+| 🛡️ **Fidye yazılımı koruması** | Şifrelenme belirtisi veya toplu değişim görülürse yedek ve eşitleme durur, sağlam yedeklere dokunulmaz, e-posta ve ekran uyarısı verilir. |
 | 🔎 **SQL Server taraması** | Bu bilgisayardaki ve yerel ağdaki SQL Server örneklerini listeler; varsayılan port 1433. |
 | 🔁 **Always On** | Yedek tercih edilen replikadan alınır. İkincilde COPY_ONLY ve eşitleme kuralları otomatik uygulanır. |
 | ☁️ **Çoklu hedef** | Birden çok Google Drive hesabı, OneDrive, Dropbox, yerel disk, USB veya ağ klasörü. |
@@ -69,7 +72,9 @@ Kurulum istemiyorsanız `Backup360-Portable-….zip` dosyasını açıp `Backup3
 - **SQL Server yedek klasörü:** SQL Server servis hesabının yazabildiği, uygulamanın da okuyabildiği bir klasör olmalıdır. Uzak sunucuda ortak bir ağ yolu (UNC) kullanın.
 - **Always On:** Tercih edilen replikaya göre yedek almak için işi her replikada kurun. İkincil replikada Differential yedek alınamaz; SQL Server bunu desteklemez.
 - **Yedek zinciri:** Log yedekleri günlük zincirini etkiler. Başka bir yedekleme aracı kullanıyorsanız yalnızca COPY_ONLY tam yedek alın.
-- **MySQL/MariaDB:** Bilgisayarda `mysqldump` kurulu olmalıdır.
+- **MySQL/MariaDB, PostgreSQL, Firebird:** Bilgisayarda sırasıyla `mysqldump`, `pg_dump` ve `gbak` istemci araçları kurulu olmalıdır.
+- **Fidye yazılımı koruması:** Her yedekten önce ve varsayılan olarak 15 dakikada bir çalışır; saldırıyı engellemez, sağlam yedeklerin üzerine yazılmasını önler. Ek güvence için değiştirilemez (Object Lock) veya çevrimdışı bir kopya tutun.
+- **E-posta uyarıları** için Ayarlar'da SMTP bilgilerini girin.
 - **RAR:** RAR arşivini yalnızca WinRAR oluşturabilir. Lisanslı WinRAR varsa `rar` seçeneği görünür.
 - **Parola desteği:** Arşiv parolası 7z, zip ve rar için geçerlidir. Diğer formatlarla birlikte seçilirse iş kaydedilmez; böylece şifresiz gönderim yanlışlıkla olmaz.
 - **Zamanlama:** Görevler Windows oturumunuz açıkken çalışır.

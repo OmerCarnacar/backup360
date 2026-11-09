@@ -55,9 +55,9 @@ public static class SyncPlanner
     /// Aktarmadan önce iki taraf arasındaki farkı listeler. Karşılaştırma mümkünse özet değeriyle,
     /// değilse boyut ve tarihle yapılır.
     /// </summary>
-    public static async Task<DiffResult> DiffAsync(SyncPair pair, IEnumerable<string> excludes, CancellationToken ct)
+    public static async Task<DiffResult> DiffAsync(SyncPair pair, IEnumerable<string> excludes, CancellationToken ct, bool sizeOnly = false)
     {
-        var (code, output, error) = await Cloud.CheckAsync(pair, excludes, ct);
+        var (code, output, error) = await Cloud.CheckAsync(pair, excludes, ct, sizeOnly);
         var items = new List<DiffEntry>();
         foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {

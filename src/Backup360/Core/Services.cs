@@ -54,7 +54,7 @@ public static class Notifier
     }
 
     public static bool ShouldNotify(SmtpSettings s, string status) =>
-        s.Enabled && status switch { "failed" => true, "warning" => s.OnWarning, "success" => s.OnSuccess, _ => false };
+        s.Enabled && status switch { "failed" or "corrupt" or "ransomware" => true, "warning" => s.OnWarning, "success" => s.OnSuccess, _ => false };
 
     /// <summary>Sonucu e-posta ile bildirir. Bildirim hatası yedeğin sonucunu asla değiştirmez.</summary>
     public static async Task ReportAsync(string kind, string name, string status, string detail, DateTime started, long bytes, Action<string>? log)
@@ -63,7 +63,7 @@ public static class Notifier
         {
             var settings = Load();
             if (!ShouldNotify(settings, status)) return;
-            var label = status switch { "failed" => "HATA", "warning" => "UYARI", _ => "BAŞARILI" };
+            var label = status switch { "ransomware" => "FIDYE YAZILIMI SUPHESI", "corrupt" => "YEDEK BOZUK", "failed" => "HATA", "warning" => "UYARI", _ => "BAŞARILI" };
             var seconds = (DateTime.Now - started).TotalSeconds;
             var body = new StringBuilder()
                 .AppendLine($"İş       : {name} ({kind})")

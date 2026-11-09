@@ -25,12 +25,12 @@
                 <ui:NavigationViewItemHeader Text="EŞİTLEME" />
                 <ui:NavigationViewItem Content="Klasör Eşitleme" Icon="{ui:SymbolIcon FolderSync24}" TargetPageType="{x:Type p:FolderSyncPage}" />
                 <ui:NavigationViewItem Content="SQL Eşitleme" Icon="{ui:SymbolIcon DatabaseArrowRight20}" TargetPageType="{x:Type p:SqlSyncPage}" />
-                <ui:NavigationViewItemHeader Text="DOSYA İŞLEMLERİ" />
                 <ui:NavigationViewItem Content="Klasör Taşıma" Icon="{ui:SymbolIcon FolderArrowRight24}" TargetPageType="{x:Type p:RulesPage}" />
                 <ui:NavigationViewItemHeader Text="BAĞLANTILAR" />
                 <ui:NavigationViewItem Content="Hedefler" Icon="{ui:SymbolIcon Cloud24}" TargetPageType="{x:Type p:TargetsPage}" />
                 <ui:NavigationViewItem Content="Bulut Gezgini" Icon="{ui:SymbolIcon FolderOpen24}" TargetPageType="{x:Type p:ExplorerPage}" />
                 <ui:NavigationViewItemHeader Text="İZLEME" />
+                <ui:NavigationViewItem Content="Yedek Sağlığı" Icon="{ui:SymbolIcon ShieldCheckmark24}" TargetPageType="{x:Type p:HealthPage}" />
                 <ui:NavigationViewItem Content="Geçmiş" Icon="{ui:SymbolIcon History24}" TargetPageType="{x:Type p:HistoryPage}" />
                 <ui:NavigationViewItem Content="Canlı Günlük" Icon="{ui:SymbolIcon TextBulletListSquare24}" TargetPageType="{x:Type p:LogPage}" />
             </ui:NavigationView.MenuItems>

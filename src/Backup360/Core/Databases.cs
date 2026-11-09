@@ -4,6 +4,19 @@ using Microsoft.Data.Sqlite;
 
 namespace Backup360.Core;
 
+/// <summary>Yedek veya kaynak veritabanı bozuk: normal bir bağlantı hatasından ayrı bildirilir.</summary>
+public sealed class BackupCorruptException(string message, Exception? inner = null) : IOException(message, inner);
+
+public static class BackupHealth
+{
+    // 3043: yedeklenirken bozuk sayfa · 3183/3189/3241-3243/3256: bozuk yedek kümesi · 823/824: disk veya sayfa bozulması
+    private static readonly HashSet<int> CorruptionErrors = new() { 823, 824, 3043, 3183, 3189, 3241, 3242, 3243, 3256 };
+
+    // 89xx: DBCC CHECKDB tutarlılık hataları (8921 yalnızca kaynak yetersizliğidir)
+    public static bool IsCorruption(SqlException e) =>
+        e.Errors.Cast<SqlError>().Any(x => CorruptionErrors.Contains(x.Number) || (x.Number is >= 8900 and <= 8999 && x.Number != 8921));
+}
+
 public sealed record DbInfo(string Name, string State, string Recovery, bool InAg, string? AgName, string? Role, string? SyncState, bool Preferred)
 {
     public string Label => InAg ? $"{Name}   [Always On: {AgName} · {Role} · {SyncState}]" : Name;
@@ -114,6 +127,23 @@ public static class MsSql
     public static IEnumerable<DbInfo> Select(Job j, List<DbInfo> all) =>
         j.DbAll ? all.Where(d => !SystemDbs.Contains(d.Name, StringComparer.OrdinalIgnoreCase)) : all.Where(d => j.DbNames.Contains(d.Name, StringComparer.OrdinalIgnoreCase));
 
+    /// <summary>Saldırılarda sık kullanılan zayıf SQL Server ayarlarını bildirir; hiçbir ayarı değiştirmez.</summary>
+    public static async Task<List<string>> SecurityNotesAsync(Job j, CancellationToken ct)
+    {
+        var notes = new List<string>();
+        if (string.Equals(j.DbUser, "sa", StringComparison.OrdinalIgnoreCase) && j.DbAuth == "sql")
+            notes.Add("sa hesabı kullanılıyor: yalnızca yedek yetkili ayrı bir hesap daha güvenlidir.");
+        try
+        {
+            await using var c = await OpenAsync(j, ct);
+            await using var cmd = new SqlCommand("SELECT CAST(value_in_use AS int) FROM sys.configurations WHERE name = 'xp_cmdshell'", c);
+            if (Convert.ToInt32(await cmd.ExecuteScalarAsync(ct)) == 1)
+                notes.Add("xp_cmdshell açık: saldırganların SQL üzerinden komut çalıştırmasına izin verir, kapatılması önerilir.");
+        }
+        catch (SqlException) { }
+        return notes;
+    }
+
     public static async Task<string> BackupFolderAsync(Job j, CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(j.DbBackupDir)) return j.DbBackupDir.Trim();
@@ -167,6 +197,74 @@ public static class MsSql
         if (copyOnly) options.Add("COPY_ONLY");
         // Sunucu tarafında sıkıştırılmaz: asıl sıkıştırmayı seçilen arşiv formatı en yüksek oranla yapar.
         return RunWithProgressAsync(j, $"BACKUP {kind} {Quote(db.Name)} TO DISK = @p WITH {string.Join(", ", options)}", path, percent, ct);
+    }
+
+    /// <summary>
+    /// Yedeğin gerçekten açıldığını kanıtlar: geçici veritabanına geri yükler, DBCC CHECKDB çalıştırır ve siler.
+    /// Üretim veritabanına dokunmaz; geçici olarak veritabanı kadar disk alanı kullanır.
+    /// </summary>
+    public static async Task RestoreTestAsync(Job j, string path, Action<int>? percent, CancellationToken ct)
+    {
+        var temp = "Backup360_Verify_" + Guid.NewGuid().ToString("N")[..10];
+        await using var c = await OpenAsync(j, ct);
+
+        string dataDir, logDir;
+        await using (var folders = new SqlCommand("SELECT CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS nvarchar(4000)), CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS nvarchar(4000))", c))
+        await using (var r = await folders.ExecuteReaderAsync(ct))
+        {
+            await r.ReadAsync(ct);
+            var fallback = Path.GetDirectoryName(path)!;
+            dataDir = r.IsDBNull(0) || r.GetString(0).Length == 0 ? fallback : r.GetString(0);
+            logDir = r.IsDBNull(1) || r.GetString(1).Length == 0 ? fallback : r.GetString(1);
+        }
+
+        var files = new List<(string Logical, string Type)>();
+        await using (var list = new SqlCommand("RESTORE FILELISTONLY FROM DISK = @p", c) { CommandTimeout = 0 })
+        {
+            list.Parameters.AddWithValue("@p", path);
+            await using var r = await list.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct)) files.Add(((string)r["LogicalName"], (string)r["Type"]));
+        }
+
+        var moves = new List<string>();
+        await using var restore = new SqlCommand { Connection = c, CommandTimeout = 0 };
+        restore.Parameters.AddWithValue("@p", path);
+        for (var i = 0; i < files.Count; i++)
+        {
+            var (logical, type) = files[i];
+            var target = type == "L" ? Path.Combine(logDir, $"{temp}_{i}.ldf") : Path.Combine(dataDir, type == "D" ? $"{temp}_{i}.mdf" : $"{temp}_{i}");
+            restore.Parameters.AddWithValue($"@l{i}", logical);
+            restore.Parameters.AddWithValue($"@t{i}", target);
+            moves.Add($"MOVE @l{i} TO @t{i}");
+        }
+        restore.CommandText = $"RESTORE DATABASE {Quote(temp)} FROM DISK = @p WITH CHECKSUM, RECOVERY, {string.Join(", ", moves)}";
+
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var monitor = MonitorAsync(j, c.ServerProcessId, percent, stop.Token);
+        try
+        {
+            await restore.ExecuteNonQueryAsync(ct);
+            await using var check = new SqlCommand($"DBCC CHECKDB ({Quote(temp)}) WITH NO_INFOMSGS, ALL_ERRORMSGS", c) { CommandTimeout = 0 };
+            await check.ExecuteNonQueryAsync(ct);
+        }
+        finally
+        {
+            stop.Cancel();
+            try { await monitor; } catch (OperationCanceledException) { }
+            await DropTempAsync(j, temp);
+        }
+    }
+
+    /// <summary>Geçici veritabanını her durumda kaldırır; iptal edilse de sunucuda iz bırakmaz.</summary>
+    private static async Task DropTempAsync(Job j, string temp)
+    {
+        try
+        {
+            await using var c = await OpenAsync(j, CancellationToken.None);
+            await using var drop = new SqlCommand($"IF DB_ID(N'{temp}') IS NOT NULL BEGIN ALTER DATABASE {Quote(temp)} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE {Quote(temp)}; END", c) { CommandTimeout = 120 };
+            await drop.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+        catch (SqlException) { }
     }
 
     public static Task VerifyAsync(Job j, string path, Action<int>? percent, CancellationToken ct) =>
@@ -245,7 +343,7 @@ public static class MySqlEngine
         using var f = File.OpenRead(path);
         f.Seek(Math.Max(0, f.Length - 256), SeekOrigin.Begin);
         using var r = new StreamReader(f);
-        if (!r.ReadToEnd().Contains("Dump completed")) throw new IOException("Döküm eksik görünüyor; tamamlanma satırı yok.");
+        if (!r.ReadToEnd().Contains("Dump completed")) throw new BackupCorruptException("MySQL dökümü eksik: tamamlanma satırı yok.");
     }
 }
 
@@ -255,6 +353,15 @@ public static class SqliteEngine
     public static void Backup(string source, string destination)
     {
         if (!File.Exists(source)) throw new FileNotFoundException("SQLite dosyası bulunamadı: " + source);
+        try { Copy(source, destination); }
+        catch (SqliteException e) when (e.SqliteErrorCode is 11 or 26)
+        {
+            throw new BackupCorruptException($"SQLite dosyası bozuk: {source}", e);
+        }
+    }
+
+    private static void Copy(string source, string destination)
+    {
         using (var from = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = source, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
         using (var to = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = destination, Pooling = false }.ToString()))
         {
@@ -267,6 +374,6 @@ public static class SqliteEngine
         using var cmd = check.CreateCommand();
         cmd.CommandText = "PRAGMA integrity_check";
         var result = cmd.ExecuteScalar() as string;
-        if (result != "ok") throw new IOException("SQLite bütünlük denetimi başarısız: " + result);
+        if (result != "ok") throw new BackupCorruptException("SQLite bütünlük denetimi başarısız: " + result);
     }
 }

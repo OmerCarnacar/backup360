@@ -208,7 +208,91 @@ public class DatabaseTests
         var job = DbJob("Bozuk", "sqlite");
         job.DbNames = new() { fake };
         Db.Save(job);
-        Assert.Equal("failed", (await BackupRunner.RunAsync(job.Id, null, default)).Status);
+        var r = await BackupRunner.RunAsync(job.Id, null, default);
+        Assert.Equal("corrupt", r.Status);
+        Assert.StartsWith("YEDEK BOZUK", r.Detail);
+        Assert.Equal("corrupt", Db.LastRun("job", job.Id)!.Status);
+        Assert.Empty(Directory.GetFiles(s.Cloud1, "*", SearchOption.AllDirectories));
+    }
+
+    private static async Task<int> TempDatabases() => await Count("SELECT COUNT(*) FROM sys.databases WHERE name LIKE 'Backup360_Verify_%'", "master");
+
+    [Fact]
+    public async Task Restore_test_proves_backup_and_leaves_nothing_behind()
+    {
+        using var s = new Sandbox();
+        var name = "b360_" + Guid.NewGuid().ToString("N")[..8];
+        var bak = Directory.CreateDirectory(Path.Combine(s.Root, "bak")).FullName;
+        var files = Directory.CreateDirectory(Path.Combine(s.Root, "mdf")).FullName;
+        await Sql($"CREATE DATABASE [{name}] ON (NAME=d, FILENAME='{files}\\{name}.mdf') LOG ON (NAME=l, FILENAME='{files}\\{name}.ldf')");
+        try
+        {
+            await Sql("CREATE TABLE t(a char(4000)); INSERT t VALUES ('x'),('y')", name);
+            var job = DbJob("Sinav", "mssql");
+            job.DbServer = LocalDb;
+            job.DbNames = new() { name };
+            job.DbBackupDir = bak;
+            job.DbRestoreTest = true;
+            Db.Save(job);
+            var lines = new List<string>();
+            var r = await BackupRunner.RunAsync(job.Id, l => { lock (lines) lines.Add(l); }, default);
+            Assert.True(r.Status == "success", r.Detail);
+            lock (lines) Assert.Contains(lines, l => l.Contains("CHECKDB temiz"));
+            Assert.Equal(0, await TempDatabases());
+            Assert.Single(Directory.GetFiles(s.Cloud1, $"{name}_FULL_*.7z", SearchOption.AllDirectories));
+
+            var db = (await MsSql.ListAsync(job, default)).Single(d => d.Name == name);
+            var path = Path.Combine(bak, "h.bak");
+            await MsSql.BackupAsync(job, db, "full", true, path, null, default);
+            var bytes = File.ReadAllBytes(path);
+            for (var i = bytes.Length / 3; i < bytes.Length * 2 / 3; i += 512) bytes[i] ^= 0xFF;
+            File.WriteAllBytes(path, bytes);
+            var error = await Assert.ThrowsAsync<SqlException>(() => MsSql.RestoreTestAsync(job, path, null, default));
+            Assert.True(BackupHealth.IsCorruption(error), string.Join(",", error.Errors.Cast<SqlError>().Select(x => x.Number)));
+            Assert.Equal(0, await TempDatabases());
+        }
+        finally { await Drop(name); }
+    }
+
+    [Fact]
+    public async Task Security_notes_flag_sa_without_changing_server()
+    {
+        var job = DbJob("Guv", "mssql");
+        job.DbServer = LocalDb;
+        var windows = await MsSql.SecurityNotesAsync(job, default);
+        Assert.DoesNotContain(windows, n => n.StartsWith("sa "));
+        job.DbAuth = "sql";
+        job.DbUser = "SA";
+        Assert.Contains(await MsSql.SecurityNotesAsync(job, default), n => n.StartsWith("sa "));
+    }
+
+    [Fact]
+    public async Task Damaged_sql_server_backup_is_recognized_as_corrupt()
+    {
+        using var s = new Sandbox();
+        var name = "b360_" + Guid.NewGuid().ToString("N")[..8];
+        var bak = Directory.CreateDirectory(Path.Combine(s.Root, "bak")).FullName;
+        var files = Directory.CreateDirectory(Path.Combine(s.Root, "mdf")).FullName;
+        await Sql($"CREATE DATABASE [{name}] ON (NAME=d, FILENAME='{files}\\{name}.mdf') LOG ON (NAME=l, FILENAME='{files}\\{name}.ldf')");
+        try
+        {
+            await Sql("CREATE TABLE t(a char(4000)); INSERT t VALUES ('x'),('y'),('z')", name);
+            var job = DbJob("Hasar", "mssql");
+            job.DbServer = LocalDb;
+            job.DbNames = new() { name };
+            var db = (await MsSql.ListAsync(job, default)).Single(d => d.Name == name);
+            var path = Path.Combine(bak, "x.bak");
+            await MsSql.BackupAsync(job, db, "full", true, path, null, default);
+            await MsSql.VerifyAsync(job, path, null, default);
+
+            var bytes = File.ReadAllBytes(path);
+            for (var i = bytes.Length / 3; i < bytes.Length * 2 / 3; i += 512) bytes[i] ^= 0xFF;
+            File.WriteAllBytes(path, bytes);
+
+            var error = await Assert.ThrowsAsync<SqlException>(() => MsSql.VerifyAsync(job, path, null, default));
+            Assert.True(BackupHealth.IsCorruption(error), string.Join(",", error.Errors.Cast<SqlError>().Select(x => x.Number)));
+        }
+        finally { await Drop(name); }
     }
 
     [Fact]
@@ -383,7 +467,7 @@ public class ServiceTests
         Assert.Contains(seen, p => p > 0);
     }
 
-    private sealed class FakeSmtp : IDisposable
+    internal sealed class FakeSmtp : IDisposable
     {
         private readonly TcpListener _l = new(IPAddress.Loopback, 0);
         public readonly List<string> Lines = new();
@@ -441,6 +525,20 @@ public class ServiceTests
             Assert.Contains(smtp.Lines, l => l.StartsWith("RCPT TO:<bt@ornek.com>"));
             Assert.Contains(smtp.Lines, l => l.StartsWith("Subject:") && l.Contains("Kotu"));
         }
+    }
+
+    [Fact]
+    public async Task Corrupt_backup_sends_distinct_mail()
+    {
+        using var s = new Sandbox();
+        using var smtp = new FakeSmtp();
+        Notifier.Save(new SmtpSettings { Enabled = true, Host = "127.0.0.1", Port = smtp.Port, Security = "none", From = "yedek@ornek.com", To = "bt@ornek.com", OnWarning = false });
+        var fake = Path.Combine(s.Root, "bozuk.db");
+        File.WriteAllText(fake, "bu bir veritabani degil, sadece metin dosyasi");
+        var job = new Job { Name = "Kritik", Mode = "database", DbEngine = "sqlite", DbNames = new() { fake }, DbAll = false, Formats = new() { "7z" }, Targets = new() { "gdrive" } };
+        Db.Save(job);
+        Assert.Equal("corrupt", (await BackupRunner.RunAsync(job.Id, null, default)).Status);
+        lock (smtp.Lines) Assert.Contains(smtp.Lines, l => l.StartsWith("Subject:") && l.Contains("YEDEK BOZUK") && l.Contains("Kritik"));
     }
 
     [Fact]

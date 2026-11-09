@@ -82,7 +82,7 @@ public abstract class BoardPage : Page
             return;
         }
         var (text, _) = Fmt.Status(last!.Status);
-        var severity = last.Status switch { "success" => WUI.InfoBarSeverity.Success, "warning" => WUI.InfoBarSeverity.Warning, "failed" => WUI.InfoBarSeverity.Error, _ => WUI.InfoBarSeverity.Informational };
+        var severity = last.Status switch { "success" => WUI.InfoBarSeverity.Success, "warning" => WUI.InfoBarSeverity.Warning, "failed" or "corrupt" or "ransomware" => WUI.InfoBarSeverity.Error, _ => WUI.InfoBarSeverity.Informational };
         Board.Notify($"{last.Name}: {text}. {last.Detail}", severity);
     }
 
@@ -96,7 +96,7 @@ public abstract class JobsPageBase : BoardPage
     private readonly string _section;
 
     private static readonly Dictionary<string, string> ModeNames = new() { ["archive"] = "Sıkıştırılmış", ["dated"] = "Tarih bazlı", ["mirror"] = "Klasör bazlı", ["sync"] = "Eşitleme" };
-    private static readonly Dictionary<string, string> EngineNames = new() { ["mssql"] = "SQL Server", ["mysql"] = "MySQL", ["sqlite"] = "SQLite" };
+    private static readonly Dictionary<string, string> EngineNames = new() { ["mssql"] = "SQL Server", ["mysql"] = "MySQL", ["postgres"] = "PostgreSQL", ["firebird"] = "Firebird", ["sqlite"] = "SQLite" };
 
     protected override string? LiveKind => "job";
 
@@ -109,7 +109,7 @@ public abstract class JobsPageBase : BoardPage
 
     private Job NewJob() => _section switch
     {
-        "sql" => new Job { Mode = "database", DbPort = 1433 },
+        "sql" => new Job { Mode = "database", DbPort = 1433, DbRestoreTest = true },
         "folder-sync" => new Job { Mode = "sync", SyncKind = "folder", RemoteFolder = "", MirrorDelete = true },
         "sql-sync" => new Job { Mode = "sync", SyncKind = "sql", RemoteFolder = "SQL-Yedekler", MirrorDelete = true },
         _ => new Job { Mode = "mirror", DatedOutput = "folder" },
@@ -144,7 +144,7 @@ public abstract class JobsPageBase : BoardPage
             var source = j.Mode == "sync" && j.SyncFromJob != 0
                 ? "Yedek işi: " + (Db.GetJob(j.SyncFromJob)?.Name ?? "bulunamadı")
                 : j.Mode == "database"
-                ? (j.DbEngine == "sqlite" ? string.Join(", ", j.DbNames) : j.DbServer)
+                ? (j.DbEngine is "sqlite" or "firebird" ? string.Join(", ", j.DbNames) : j.DbServer)
                 : j.Sources.FirstOrDefault() + (j.Sources.Count > 1 ? $"  +{j.Sources.Count - 1}" : "");
             var chips = new List<string> { kind };
             chips.AddRange(uncompressed ? new[] { "Sıkıştırmasız" } : j.Formats.Take(3));
@@ -158,7 +158,7 @@ public abstract class JobsPageBase : BoardPage
                     : new CardAction("Süre hesapla", WUI.SymbolRegular.Timer24, new RelayCommand(() => Ui.Guard(() => EstimateAsync(j)))),
                 new CardAction("Sil", WUI.SymbolRegular.Delete24, new RelayCommand(() => Ui.Guard(() => DeleteAsync(j))), true),
             };
-            return (Group: j.Group, Card: new CardVm(icon, accent, j.Name, source ?? "", chips.ToArray(), status, color, j.Schedule.Describe() + LastTime(last), actions) { Live = LiveFor("job", j.Id) });
+            return (Group: j.Group, Card: new CardVm(icon, accent, j.Name, source ?? "", chips.ToArray(), status, color, j.Schedule.Describe() + LastTime(last), actions) { Live = LiveFor("job", j.Id), Logo = j.Mode == "database" ? Brand.ForDb(j.DbEngine) : null });
         }).ToList();
 
         Board.SetGroups(cards.GroupBy(c => c.Group, c => c.Card, StringComparer.OrdinalIgnoreCase),
@@ -199,7 +199,7 @@ public abstract class JobsPageBase : BoardPage
 
 public sealed class FolderBackupPage() : JobsPageBase("folder", "Klasör Yedekleme", "Dosya ve klasörleri buluta, klasör olarak veya sıkıştırılmış yedekleyin.");
 public sealed class FolderSyncPage() : JobsPageBase("folder-sync", "Klasör Eşitleme", "Klasörleri başka klasöre, NAS'a veya farklı PC'ye yalnızca farkları aktararak eşitleyin.");
-public sealed class SqlBackupPage() : JobsPageBase("sql", "SQL Yedekleme", "SQL Server (Always On dahil), MySQL/MariaDB ve SQLite yedekleri.");
+public sealed class SqlBackupPage() : JobsPageBase("sql", "SQL Yedekleme", "SQL Server (Always On dahil), MySQL/MariaDB, PostgreSQL, Firebird ve SQLite yedekleri.");
 public sealed class SqlSyncPage() : JobsPageBase("sql-sync", "SQL Eşitleme", "SQL yedeklerini başka klasöre, NAS'a veya farklı PC'ye yalnızca farkları aktararak eşitleyin.");
 
 public sealed class RulesPage : BoardPage

@@ -288,6 +288,28 @@ public static class Cloud
         if (code != 0) throw new IOException($"{target}: birebir gönderim başarısız (kod {code}): {Tail(text)}");
     }
 
+    /// <summary>Klasördeki dosyaların boyut ve MD5 değerlerini okur. Klasör yoksa boş döner.</summary>
+    public static async Task<Dictionary<string, (long Size, string Md5)>> ListHashesAsync(string target, string folder, CancellationToken ct)
+    {
+        var (code, output, error) = await Proc.CaptureAsync(Exe, Args("lsjson", Join(target, folder), "-R", "--files-only", "--hash", "--hash-type", "md5", "--no-mimetype", "--retries", "2", "--low-level-retries", "3"), ct);
+        var map = new Dictionary<string, (long, string)>();
+        if (code != 0)
+        {
+            if (error.Contains("directory not found", StringComparison.OrdinalIgnoreCase)) return map;
+            throw new IOException(Explain(error));
+        }
+        using var doc = JsonDocument.Parse(output);
+        foreach (var e in doc.RootElement.EnumerateArray())
+        {
+            var md5 = e.TryGetProperty("Hashes", out var h) && h.TryGetProperty("md5", out var m) ? m.GetString() ?? "" : "";
+            map[e.GetProperty("Path").GetString()!] = (e.GetProperty("Size").GetInt64(), md5);
+        }
+        return map;
+    }
+
+    public static Task DownloadFileAsync(string target, string folder, string path, string local, CancellationToken ct) =>
+        RunTransferAsync(Args("copyto", Join(target, folder, path), local), null, null, ct);
+
     /// <summary>Hazır komutu aktarım ayarları ve canlı istatistikle çalıştırır.</summary>
     public static async Task RunTransferAsync(List<string> args, Action<string>? log, Action<TransferStats>? stats, CancellationToken ct)
     {
@@ -315,9 +337,10 @@ public static class Cloud
     }
 
     /// <summary>İki tarafı karşılaştırır. Fark bulununca rclone sıfırdan farklı kodla döner; bu hata değildir.</summary>
-    public static async Task<(int Code, string Output, string Error)> CheckAsync(SyncPair pair, IEnumerable<string> excludes, CancellationToken ct)
+    public static async Task<(int Code, string Output, string Error)> CheckAsync(SyncPair pair, IEnumerable<string> excludes, CancellationToken ct, bool sizeOnly = false)
     {
         var args = Args("check", pair.Source, $"{pair.Target}:{pair.Folder}", "--combined", "-");
+        if (sizeOnly) args.Add("--size-only");
         foreach (var x in excludes) { args.Add("--exclude"); args.Add(x); }
         return await Proc.CaptureAsync(Exe, args, ct);
     }
@@ -350,6 +373,7 @@ public static class Cloud
         foreach (var path in old)
         {
             await Must(Args("deletefile", Join(target, folder, path)), $"{path} silinemedi", ct);
+            Db.ForgetBackup(target, folder, path);
             log?.Invoke($"  eski yedek silindi: {target}:{path}");
         }
         if (old.Any(p => p.Contains('/')))
