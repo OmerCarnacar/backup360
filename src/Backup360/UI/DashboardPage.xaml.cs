@@ -163,7 +163,7 @@ public partial class DashboardPage
             new StatusRow(WUI.SymbolRegular.DismissCircle24, Fmt.Danger, "Hatalı", Of("failed")),
             new StatusRow(WUI.SymbolRegular.Prohibited24, Fmt.Neutral, "İptal edildi", Of("canceled")),
             new StatusRow(WUI.SymbolRegular.Circle24, Fmt.Neutral, "Henüz çalışmadı", Of("none")),
-        };
+        }.Where(row => row.Count > 0).ToList();
 
         var totals = RunStats.PerJob(all);
         var maxBytes = Math.Max(1, totals.Select(x => x.Bytes).DefaultIfEmpty(1).Max());

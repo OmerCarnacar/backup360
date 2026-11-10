@@ -5,202 +5,192 @@
       xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF">
     <Page.Resources>
         <DataTemplate x:Key="TopRow">
-            <StackPanel Margin="0,5">
+            <StackPanel Margin="0,3">
                 <Grid>
-                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,0,70,0" />
-                    <TextBlock Text="{Binding Value}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                    <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" Margin="0,0,70,0" />
+                    <TextBlock Text="{Binding Value}" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Right" />
                 </Grid>
                 <ProgressBar Height="3" Maximum="100" Value="{Binding Ratio, Mode=OneWay}" Margin="0,4,0,0" />
             </StackPanel>
         </DataTemplate>
     </Page.Resources>
-    <StackPanel Margin="24,8,24,16">
-        <Border x:Name="HeroBanner" CornerRadius="8" Height="62" ClipToBounds="True">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4">
-                    <GradientStop Color="#0F172A" Offset="0" />
-                    <GradientStop Color="#4338CA" Offset="0.62" />
-                    <GradientStop Color="#06B6D4" Offset="1" />
-                </LinearGradientBrush>
-            </Border.Background>
-            <Grid>
-                <Canvas HorizontalAlignment="Right" Width="420">
-                    <Ellipse Width="210" Height="210" Fill="#1FFFFFFF" Canvas.Left="150" Canvas.Top="-70">
-                        <Ellipse.RenderTransform>
-                            <TranslateTransform />
-                        </Ellipse.RenderTransform>
-                        <Ellipse.Triggers>
-                            <EventTrigger RoutedEvent="Loaded">
-                                <BeginStoryboard>
-                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" From="-50" To="60" Duration="0:0:7" />
-                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="-10" To="24" Duration="0:0:5" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                        </Ellipse.Triggers>
-                    </Ellipse>
-                    <Ellipse Width="130" Height="130" Fill="#1AFFFFFF" Canvas.Left="40" Canvas.Top="20">
-                        <Ellipse.RenderTransform>
-                            <TranslateTransform />
-                        </Ellipse.RenderTransform>
-                        <Ellipse.Triggers>
-                            <EventTrigger RoutedEvent="Loaded">
-                                <BeginStoryboard>
-                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" From="40" To="-40" Duration="0:0:9" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                        </Ellipse.Triggers>
-                    </Ellipse>
-                </Canvas>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="26,0">
-                    <Grid Width="38" Height="38" Margin="0,0,14,0">
-                        <Ellipse Fill="#33FFFFFF" />
-                        <ui:SymbolIcon x:Name="HeroIcon" Symbol="ShieldCheckmark24" FontSize="20" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Grid>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock x:Name="HeroTitle" Text="Hoş geldiniz" FontSize="16" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock x:Name="HeroSub" Foreground="#E2E8F0" FontSize="12" Margin="0,2,0,0" />
-                    </StackPanel>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <UniformGrid Columns="4" Margin="0,12,0,0">
-            <ui:Card Margin="0,0,6,0" Padding="14,10">
-                <StackPanel Orientation="Horizontal">
-                    <ui:SymbolIcon Symbol="Briefcase24" FontSize="30" Foreground="#10B981" Margin="0,0,14,0" />
-                    <StackPanel><TextBlock Text="Etkin işler" Style="{StaticResource Muted}" FontSize="12" /><TextBlock x:Name="StatOk" Text="—" FontSize="20" FontWeight="SemiBold" /></StackPanel>
-                </StackPanel>
-            </ui:Card>
-            <ui:Card Margin="6,0" Padding="14,10">
-                <StackPanel Orientation="Horizontal">
-                    <ui:SymbolIcon Symbol="Cloud24" FontSize="30" Foreground="#F59E0B" Margin="0,0,14,0" />
-                    <StackPanel><TextBlock Text="Hedefler" Style="{StaticResource Muted}" FontSize="12" /><TextBlock x:Name="StatBad" Text="—" FontSize="20" FontWeight="SemiBold" /></StackPanel>
-                </StackPanel>
-            </ui:Card>
-            <ui:Card Margin="6,0" Padding="14,10">
-                <StackPanel Orientation="Horizontal">
-                    <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="30" Foreground="#818CF8" Margin="0,0,14,0" />
-                    <StackPanel><TextBlock Text="Aktarılan (7 gün)" Style="{StaticResource Muted}" FontSize="12" /><TextBlock x:Name="StatSent" Text="—" FontSize="20" FontWeight="SemiBold" /></StackPanel>
-                </StackPanel>
-            </ui:Card>
-            <ui:Card Margin="6,0,0,0" Padding="14,10">
-                <StackPanel Orientation="Horizontal">
-                    <ui:SymbolIcon Symbol="TopSpeed24" FontSize="30" Foreground="#22D3EE" Margin="0,0,14,0" />
-                    <StackPanel><TextBlock Text="Ortalama hız" Style="{StaticResource Muted}" FontSize="12" /><TextBlock x:Name="StatSpeed" Text="—" FontSize="20" FontWeight="SemiBold" /></StackPanel>
-                </StackPanel>
-            </ui:Card>
-        </UniformGrid>
-
-        <ui:InfoBar x:Name="ProblemBar" IsOpen="False" IsClosable="False" Severity="Warning" Margin="0,10,0,0" />
-        <TextBlock x:Name="LiveTitle" Text="Canlı aktarımlar" Style="{StaticResource Section}" Visibility="Collapsed" Margin="0,10,0,6" />
-        <UniformGrid x:Name="LivePanel" Columns="1" Margin="0,0,-8,0" />
-
-        <Grid Margin="0,12,0,0">
+    <StackPanel Margin="20,6,20,12">
+        <!-- Üst şerit: genel durum ve dört gösterge tek satırda -->
+        <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="280" />
-                <ColumnDefinition Width="12" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="2.2*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <ui:Card Padding="16" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
-                <StackPanel>
-                    <TextBlock Text="Geçerli iş durumu" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,12" />
-                    <ItemsControl x:Name="StatusList">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,6">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="{Binding Icon}" Foreground="{Binding Brush}" FontSize="20" Margin="0,0,10,0" />
-                                        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding Count}" FontWeight="SemiBold" FontSize="15" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </ui:Card>
-            <ui:Card Grid.Column="2" Padding="16" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
-                <StackPanel>
-                    <Grid>
-                        <TextBlock x:Name="ChartTitle" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <ComboBox x:Name="MetricBox" Width="170" Margin="0,0,8,0" SelectionChanged="Chart_Changed">
-                                <ComboBoxItem Content="Aktarılan veri" IsSelected="True" />
-                                <ComboBoxItem Content="Çalışma sayısı" />
-                            </ComboBox>
-                            <ComboBox x:Name="RangeBox" Width="130" SelectionChanged="Chart_Changed">
-                                <ComboBoxItem Content="Günlük" IsSelected="True" />
-                                <ComboBoxItem Content="Haftalık" />
-                                <ComboBoxItem Content="Aylık" />
-                            </ComboBox>
+            <Border x:Name="HeroBanner" CornerRadius="8" ClipToBounds="True" MinHeight="54">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4">
+                        <GradientStop Color="#0F172A" Offset="0" />
+                        <GradientStop Color="#4338CA" Offset="0.62" />
+                        <GradientStop Color="#06B6D4" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Grid>
+                    <Ellipse Width="120" Height="120" Fill="#1FFFFFFF" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,-40,-20,-40">
+                        <Ellipse.RenderTransform>
+                            <TranslateTransform />
+                        </Ellipse.RenderTransform>
+                        <Ellipse.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" From="-60" To="20" Duration="0:0:7" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Ellipse.Triggers>
+                    </Ellipse>
+                    <Grid Margin="14,8" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid Width="32" Height="32" Margin="0,0,12,0">
+                            <Ellipse Fill="#33FFFFFF" />
+                            <ui:SymbolIcon x:Name="HeroIcon" Symbol="ShieldCheckmark24" FontSize="17" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="HeroTitle" Text="Hoş geldiniz" FontSize="14" FontWeight="SemiBold" Foreground="White" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="HeroSub" Foreground="#E2E8F0" FontSize="11.5" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                         </StackPanel>
                     </Grid>
-                    <lvc:CartesianChart x:Name="Chart" Background="Transparent" Height="200" Margin="0,8,0,0" />
+                </Grid>
+            </Border>
+            <ui:Card Grid.Column="2" Padding="12,8" VerticalAlignment="Stretch">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:SymbolIcon Symbol="Briefcase24" FontSize="22" Foreground="#10B981" Margin="0,0,10,0" />
+                    <StackPanel>
+                        <TextBlock Text="Etkin işler" Style="{StaticResource Muted}" FontSize="11" />
+                        <TextBlock x:Name="StatOk" Text="—" FontSize="17" FontWeight="SemiBold" />
+                    </StackPanel>
+                </StackPanel>
+            </ui:Card>
+            <ui:Card Grid.Column="4" Padding="12,8" VerticalAlignment="Stretch">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:SymbolIcon Symbol="Cloud24" FontSize="22" Foreground="#F59E0B" Margin="0,0,10,0" />
+                    <StackPanel>
+                        <TextBlock Text="Hedefler" Style="{StaticResource Muted}" FontSize="11" />
+                        <TextBlock x:Name="StatBad" Text="—" FontSize="17" FontWeight="SemiBold" />
+                    </StackPanel>
+                </StackPanel>
+            </ui:Card>
+            <ui:Card Grid.Column="6" Padding="12,8" VerticalAlignment="Stretch">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="22" Foreground="#818CF8" Margin="0,0,10,0" />
+                    <StackPanel>
+                        <TextBlock Text="Aktarılan (7 gün)" Style="{StaticResource Muted}" FontSize="11" />
+                        <TextBlock x:Name="StatSent" Text="—" FontSize="17" FontWeight="SemiBold" />
+                    </StackPanel>
+                </StackPanel>
+            </ui:Card>
+            <ui:Card Grid.Column="8" Padding="12,8" VerticalAlignment="Stretch">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:SymbolIcon Symbol="TopSpeed24" FontSize="22" Foreground="#22D3EE" Margin="0,0,10,0" />
+                    <StackPanel>
+                        <TextBlock Text="Ortalama hız" Style="{StaticResource Muted}" FontSize="11" />
+                        <TextBlock x:Name="StatSpeed" Text="—" FontSize="17" FontWeight="SemiBold" />
+                    </StackPanel>
                 </StackPanel>
             </ui:Card>
         </Grid>
 
-        <Grid Margin="0,12,0,0">
+        <!-- İş durumu: yalnızca sayısı sıfırdan büyük olanlar, tek satır -->
+        <ItemsControl x:Name="StatusList" Margin="0,8,0,0">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border CornerRadius="13" Padding="10,3,12,3" Margin="0,0,6,4" Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="{Binding Icon}" Foreground="{Binding Brush}" FontSize="15" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Count}" FontSize="12" FontWeight="SemiBold" Margin="6,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <ui:InfoBar x:Name="ProblemBar" IsOpen="False" IsClosable="False" Severity="Warning" Margin="0,4,0,0" />
+        <TextBlock x:Name="LiveTitle" Text="Canlı aktarımlar" FontSize="13.5" FontWeight="SemiBold" Visibility="Collapsed" Margin="0,8,0,6" />
+        <UniformGrid x:Name="LivePanel" Columns="1" Margin="0,0,-8,0" />
+
+        <ui:Card Padding="12,10" Margin="0,4,0,0" VerticalContentAlignment="Top">
+            <StackPanel>
+                <Grid>
+                    <TextBlock x:Name="ChartTitle" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <ComboBox x:Name="MetricBox" Width="150" Margin="0,0,8,0" SelectionChanged="Chart_Changed">
+                            <ComboBoxItem Content="Aktarılan veri" IsSelected="True" />
+                            <ComboBoxItem Content="Çalışma sayısı" />
+                        </ComboBox>
+                        <ComboBox x:Name="RangeBox" Width="110" SelectionChanged="Chart_Changed">
+                            <ComboBoxItem Content="Günlük" IsSelected="True" />
+                            <ComboBoxItem Content="Haftalık" />
+                            <ComboBoxItem Content="Aylık" />
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+                <lvc:CartesianChart x:Name="Chart" Background="Transparent" Height="150" Margin="0,4,0,0" />
+            </StackPanel>
+        </ui:Card>
+
+        <Grid Margin="0,8,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition />
+                <ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition />
             </Grid.ColumnDefinitions>
-            <ui:Card Padding="16" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
+            <ui:Card Grid.Column="0" Padding="12,10" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
                 <StackPanel>
-                    <TextBlock Text="En büyük işler" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10" />
-                    <TextBlock x:Name="BiggestEmpty" Text="Henüz veri yok." Style="{StaticResource Muted}" />
+                    <TextBlock Text="En büyük işler" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <TextBlock x:Name="BiggestEmpty" Text="Henüz veri yok." Style="{StaticResource Muted}" FontSize="12" />
                     <ItemsControl x:Name="Biggest" ItemTemplate="{StaticResource TopRow}" />
                 </StackPanel>
             </ui:Card>
-            <ui:Card Grid.Column="2" Padding="16" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
+            <ui:Card Grid.Column="2" Padding="12,10" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
                 <StackPanel>
-                    <TextBlock Text="En uzun süren işler" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10" />
-                    <TextBlock x:Name="LongestEmpty" Text="Henüz veri yok." Style="{StaticResource Muted}" />
+                    <TextBlock Text="En uzun süren işler" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <TextBlock x:Name="LongestEmpty" Text="Henüz veri yok." Style="{StaticResource Muted}" FontSize="12" />
                     <ItemsControl x:Name="Longest" ItemTemplate="{StaticResource TopRow}" />
                 </StackPanel>
             </ui:Card>
-            <ui:Card Grid.Column="4" Padding="16" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
+            <ui:Card Grid.Column="4" Padding="12,10" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
                 <StackPanel>
-                    <TextBlock Text="Son etkinlikler" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10" />
-                    <TextBlock x:Name="FeedEmpty" Text="Henüz çalışma yok." Style="{StaticResource Muted}" />
+                    <TextBlock Text="Son etkinlikler" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <TextBlock x:Name="FeedEmpty" Text="Henüz çalışma yok." Style="{StaticResource Muted}" FontSize="12" />
                     <ItemsControl x:Name="Feed">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,5">
+                                <Grid Margin="0,3">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Symbol="{Binding Icon}" Foreground="{Binding Brush}" FontSize="22" Margin="0,0,10,0" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding Label}" FontSize="12" Style="{StaticResource Muted}" />
+                                    <ui:SymbolIcon Symbol="{Binding Icon}" Foreground="{Binding Brush}" FontSize="17" Margin="0,0,8,0" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" ClipToBounds="True">
+                                        <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Label}" FontSize="11.5" Style="{StaticResource Muted}" Margin="8,0,0,0" VerticalAlignment="Center" />
                                     </StackPanel>
-                                    <TextBlock Grid.Column="2" Text="{Binding When}" FontSize="12" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding When}" FontSize="11.5" Style="{StaticResource Muted}" Margin="10,0,0,0" VerticalAlignment="Center" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
             </ui:Card>
-            <ui:Card Grid.Column="6" Padding="16" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
+            <ui:Card Grid.Column="6" Padding="12,10" VerticalAlignment="Stretch" VerticalContentAlignment="Top">
                 <StackPanel>
-                    <TextBlock Text="Yaklaşan zamanlamalar" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10" />
-                    <TextBlock x:Name="UpcomingEmpty" Text="Zamanlanmış iş yok." Style="{StaticResource Muted}" />
+                    <TextBlock Text="Yaklaşan zamanlamalar" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <TextBlock x:Name="UpcomingEmpty" Text="Zamanlanmış iş yok." Style="{StaticResource Muted}" FontSize="12" />
                     <ItemsControl x:Name="Upcoming">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,5">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                    <ui:ProgressRing IsIndeterminate="False" Progress="{Binding Percent}" Width="28" Height="28" Margin="0,0,10,0" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding Remaining}" FontSize="12" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                                    </StackPanel>
+                                <Grid Margin="0,3">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <ui:ProgressRing IsIndeterminate="False" Progress="{Binding Percent}" Width="18" Height="18" Margin="0,0,8,0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Remaining}" FontSize="11.5" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -208,6 +198,5 @@
                 </StackPanel>
             </ui:Card>
         </Grid>
-
     </StackPanel>
 </Page>

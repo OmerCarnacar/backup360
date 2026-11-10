@@ -1,3 +1,8 @@
+## 2026.11.10.1600
+
+### Değişti
+- Pano yeniden düzenlendi: genel durum ve göstergeler tek satırda, iş durumu yalnızca dolu olanları gösteren etiketler halinde, grafik ve listeler daha sıkı
+
 ## 2026.11.10.1516
 
 ### Değişti: hedeflere doğrudan bağlantı
