@@ -80,7 +80,13 @@ public partial class DashboardPage
             if (view == null) LivePanel.Children.Add(new ActivityView(state));
             else view.Update(state);
         }
+        // Birden çok iş yan yana durur; pano aşağı doğru uzamaz.
+        LivePanel.Columns = states.Count >= 2 && ActualWidth >= 1100 ? 2 : 1;
         LiveTitle.Visibility = states.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var (errors, warnings) = Problems.OpenCounts();
+        ProblemBar.IsOpen = errors + warnings > 0;
+        ProblemBar.Severity = errors > 0 ? Wpf.Ui.Controls.InfoBarSeverity.Error : Wpf.Ui.Controls.InfoBarSeverity.Warning;
+        ProblemBar.Message = $"{errors} açık hata, {warnings} açık uyarı var. Hangi öğelerin yedeklenemediğini veya aktarılamadığını Sorunlar sayfasında görebilirsiniz.";
     }
 
     private static TimeSpan Window(Schedule s) => s.Type switch

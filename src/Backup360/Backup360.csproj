@@ -23,6 +23,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+        <PackageReference Include="AWSSDK.S3" Version="4.0.104.11" />
+        <PackageReference Include="FluentFTP" Version="55.1.0" />
+        <PackageReference Include="SSH.NET" Version="2026.0.0" />
         <Resource Include="..\..\assets\logo.png" Link="Assets\logo.png" />
     <EmbeddedResource Include="google-client.txt" LogicalName="google-client.txt" Condition="Exists('google-client.txt')" />
     <AssemblyMetadata Include="BuildCode" Value="$(BuildCode)" />

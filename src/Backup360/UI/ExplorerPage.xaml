@@ -4,7 +4,7 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <StackPanel Margin="24,8,24,16">
         <TextBlock Text="Bulut Gezgini" Style="{StaticResource PageTitle}" />
-        <TextBlock Text="Bağlı hedeflerinizin içeriğini görün, indirin veya sürücü harfi olarak bağlayın." Style="{StaticResource Muted}" Margin="0,2,0,12" />
+        <TextBlock Text="Bağlı hedeflerinizin içeriğini görün, dosya ve klasör indirin." Style="{StaticResource Muted}" Margin="0,2,0,12" />
         <ui:InfoBar x:Name="Notice" IsOpen="False" IsClosable="True" Margin="0,0,0,10" />
 
         <ui:Card Padding="14">
@@ -41,7 +41,7 @@
 
         <ui:Card Padding="4" Margin="0,10,0,0">
             <Grid>
-                <DataGrid x:Name="Files" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="All" HorizontalGridLinesBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" VerticalGridLinesBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" BorderThickness="1" BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" CanUserAddRows="False" SelectionMode="Extended" RowHeight="36" MinHeight="300" MaxHeight="430" MouseDoubleClick="Files_DoubleClick">
+                <DataGrid x:Name="Files" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="All" HorizontalGridLinesBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" VerticalGridLinesBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" BorderThickness="1" BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" CanUserAddRows="False" SelectionMode="Extended" RowHeight="36" MinHeight="360" MaxHeight="560" MouseDoubleClick="Files_DoubleClick">
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="Ad" Width="*">
                             <DataGridTemplateColumn.CellTemplate>
@@ -60,28 +60,6 @@
                 <ui:ProgressRing x:Name="Busy" IsIndeterminate="True" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
                 <TextBlock x:Name="Empty" Text="Bu klasör boş." Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
             </Grid>
-        </ui:Card>
-
-        <TextBlock Text="Disk olarak bağla" Style="{StaticResource Section}" />
-        <ui:Card Padding="14">
-            <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                    <ComboBox x:Name="Letters" Width="100" Margin="0,0,8,0" />
-                    <ui:Button x:Name="MountButton" Content="Seçili hedefi bağla" Icon="{ui:SymbolIcon HardDrive20}" Appearance="Primary" Margin="0,0,8,0" Click="Mount_Click" />
-                    <ui:Button x:Name="InstallButton" Content="WinFsp'i indir" Icon="{ui:SymbolIcon ArrowDownload24}" Margin="0,0,8,0" Click="WinFsp_Click" Visibility="Collapsed" />
-                </StackPanel>
-                <TextBlock x:Name="MountHint" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,10,0,0" />
-                <ItemsControl x:Name="Mounted" Margin="0,8,0,0">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Margin="0,3">
-                                <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
-                                <ui:Button Content="Bağlantıyı kes" HorizontalAlignment="Right" Command="{Binding Unmount}" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
         </ui:Card>
     </StackPanel>
 </Page>

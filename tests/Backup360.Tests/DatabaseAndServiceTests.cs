@@ -392,7 +392,7 @@ public class ServiceTests
         Assert.Equal("success", (await BackupRunner.RunAsync(job.Id, null, default)).Status);
         var files = Files(s.Cloud1);
         Assert.Equal(3, files.Length);
-        Assert.All(files, f => Assert.Matches(@"^Backup360/Projeler/Proje\d_\d{8}-\d{6}\.7z$", f));
+        Assert.All(files, f => Assert.Matches(@"^Backup360/Projeler/\d{2}-\d{2}-\d{4}_\d{2}_\d{2}/Proje\d_\d{8}-\d{6}\.7z$", f));
 
         var dest = Path.Combine(s.Root, "acik");
         var (code, text) = await Proc.RunAsync(Tools.SevenZip()!, new[] { "x", "-y", "-o" + dest, Directory.GetFiles(s.Cloud1, "Proje2_*.7z", SearchOption.AllDirectories).Single() }, null, default);
@@ -416,7 +416,9 @@ public class ServiceTests
         Db.Save(job);
         var r = await BackupRunner.RunAsync(job.Id, null, default);
         Assert.True(r.Status == "success", r.Detail);
-        Assert.Equal(new[] { "Backup360/Duz/Proje1/a.txt", "Backup360/Duz/Proje2/a.txt" }, Files(s.Cloud1));
+        var run = Directory.GetDirectories(Path.Combine(s.Cloud1, "Backup360", "Duz")).Single();
+        Assert.NotNull(WorkFolder.ParseRunFolder(Path.GetFileName(run)));
+        Assert.Equal(new[] { "Proje1/a.txt", "Proje2/a.txt" }, Files(run));
     }
 
     [Fact]

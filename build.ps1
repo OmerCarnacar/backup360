@@ -22,14 +22,6 @@ if (-not (Test-Path (Join-Path $sevenZip '7z.exe'))) { throw '7-Zip kurulu deği
 Copy-Item (Join-Path $sevenZip '7z.exe'), (Join-Path $sevenZip '7z.dll') (Join-Path $stage 'tools')
 Copy-Item (Join-Path $sevenZip 'License.txt') (Join-Path $stage 'tools\7zip-License.txt')
 
-$rcloneZip = Join-Path $dist 'rclone.zip'
-Invoke-WebRequest 'https://downloads.rclone.org/rclone-current-windows-amd64.zip' -OutFile $rcloneZip
-$rcloneDir = Join-Path $dist 'rclone'
-Expand-Archive $rcloneZip $rcloneDir
-$extracted = Get-ChildItem $rcloneDir -Directory | Select-Object -First 1
-Copy-Item (Join-Path $extracted.FullName 'rclone.exe') (Join-Path $stage 'tools')
-Copy-Item (Join-Path $extracted.FullName 'git-log.txt') (Join-Path $stage 'tools\rclone-git-log.txt') -ErrorAction SilentlyContinue
-
 Copy-Item (Join-Path $root 'LICENSE') (Join-Path $stage 'LICENSE.txt')
 Copy-Item (Join-Path $root 'THIRD-PARTY.md') (Join-Path $stage 'THIRD-PARTY.md')
 
@@ -46,5 +38,5 @@ $files = Get-ChildItem $dist -File | Where-Object { $_.Name -like 'Backup360-*' 
 $files | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } |
     Set-Content (Join-Path $dist 'SHA256SUMS.txt') -Encoding ascii
 
-Remove-Item $stage, (Join-Path $dist 'publish'), $rcloneDir, $rcloneZip -Recurse -Force
+Remove-Item $stage, (Join-Path $dist 'publish') -Recurse -Force
 Get-ChildItem $dist | Select-Object Name, @{ n = 'MB'; e = { [math]::Round($_.Length / 1MB, 1) } } | Format-Table -AutoSize

@@ -14,7 +14,7 @@ public static class RestoreCatalog
 {
     private static readonly Regex Stamped = new(@"^(?<item>.+)_(?<stamp>\d{8}-\d{6})\.(?<ext>[A-Za-z0-9.]+)$", RegexOptions.Compiled);
 
-    private static string BaseOf(Job j) => $"{j.RemoteFolder.Replace('\\', '/').Trim('/')}/{Cloud.SafeName(j.Name)}";
+    private static string BaseOf(Job j) => Cloud.JobFolder(j);
 
     public static async Task<List<RestorePoint>> ListAsync(Job job, CancellationToken ct)
     {
@@ -101,8 +101,10 @@ public static class RestoreEngine
     /// <summary>Dosyaları seçilen klasörün içinde yeni bir klasöre açar.</summary>
     public static async Task<string> RestoreFilesAsync(RestorePoint p, string destinationRoot, Action<string> log, Action<int>? percent, CancellationToken ct)
     {
-        var destination = Path.Combine(destinationRoot, $"{Cloud.SafeName(p.Item)}_GeriYukleme_{Cloud.Stamp()}");
-        if (Directory.Exists(destination)) throw new IOException("Hedef klasör zaten var: " + destination);
+        // Aynı saniyede ikinci geri yükleme de kendi klasörüne açılır; var olan klasöre dokunulmaz.
+        var name = $"{Cloud.SafeName(p.Item)}_GeriYukleme_{Cloud.Stamp()}";
+        var destination = Path.Combine(destinationRoot, name);
+        for (var i = 2; Directory.Exists(destination) || File.Exists(destination); i++) destination = Path.Combine(destinationRoot, $"{name}-{i}");
         if (!p.IsArchive)
         {
             var folder = p.Path.Length == 0 ? p.Folder : $"{p.Folder}/{p.Path}";
@@ -112,7 +114,7 @@ public static class RestoreEngine
             return destination;
         }
 
-        var work = Path.Combine(Path.GetTempPath(), "Backup360", Guid.NewGuid().ToString("N"));
+        var work = WorkFolder.CreateWork();
         try
         {
             var local = await FetchAsync(p, work, log, percent, ct);
@@ -161,7 +163,7 @@ public static class RestoreEngine
             return;
         }
 
-        var work = Path.Combine(Path.GetTempPath(), "Backup360", Guid.NewGuid().ToString("N"));
+        var work = WorkFolder.CreateWork();
         Directory.CreateDirectory(work);
         try
         {

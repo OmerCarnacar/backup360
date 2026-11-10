@@ -23,7 +23,7 @@ public static class BackupAudit
         return Convert.ToHexStringLower(MD5.HashData(s));
     }
 
-    private static string BaseOf(Job j) => $"{j.RemoteFolder.Trim('/', '\\')}/{Cloud.SafeName(j.Name)}";
+    private static string BaseOf(Job j) => Cloud.JobFolder(j);
 
     private static bool HasArchives(Job j) => j.Mode is "archive" or "database" || (j.Mode == "dated" && j.DatedOutput == "archive");
 
@@ -49,7 +49,7 @@ public static class BackupAudit
         using var log = new RunLog(title, ui, "audit", 0, title, "audit");
         var runId = Db.StartRun("audit", 0, title);
         var started = DateTime.Now;
-        var work = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "Backup360", Guid.NewGuid().ToString("N"))).FullName;
+        var work = WorkFolder.CreateWork();
         var outcome = new BackupRunner.Outcome("failed", "", 0);
         try
         {
@@ -76,10 +76,16 @@ public static class BackupAudit
         }
     }
 
+    /// <summary>Tanımlı hedefler ve işlerin yerel yedek klasörleri.</summary>
+    private sealed class TargetSet
+    {
+        public bool Contains(string target) => Cloud.TargetExists(target);
+    }
+
     private static async Task<BackupRunner.Outcome> ExecuteAsync(bool deep, string work, RunLog log, CancellationToken ct)
     {
         var jobs = Db.Jobs();
-        var targets = (await Cloud.ListTargetsAsync(ct)).Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var targets = new TargetSet();
         var unreachable = new List<string>();
         int ok = 0, changed = 0, missing = 0;
 

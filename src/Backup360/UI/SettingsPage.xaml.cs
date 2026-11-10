@@ -31,12 +31,14 @@ public partial class SettingsPage
         ThemeBox.SelectedIndex = ThemeService.IsDark ? 0 : 1;
         _loading = false;
 
+        WorkDir.Text = WorkFolder.Chosen ?? "";
+        WorkKeep.Value = WorkFolder.KeepDays;
         GuardOn.IsChecked = RansomGuard.Enabled;
         GuardMinutes.Value = TaskPlanner.GuardMinutes;
         Users.ItemsSource = Auth.Users();
         DbPath.Text = AppPaths.Database;
         static string S(string? p) => p != null ? "hazır" : "bulunamadı";
-        ToolsText.Text = $"7-Zip: {S(Tools.SevenZip())}   ·   rclone: {S(Tools.Rclone())}   ·   WinRAR: {S(Tools.Rar())}   ·   mysqldump: {S(MySqlEngine.BinDir())}";
+        ToolsText.Text = $"7-Zip: {S(Tools.SevenZip())}   ·   WinRAR: {S(Tools.Rar())}   ·   mysqldump: {S(MySqlEngine.BinDir())}";
 
         var s = Notifier.Load();
         MailOn.IsChecked = s.Enabled;
@@ -67,6 +69,26 @@ public partial class SettingsPage
         var r = await Task.Run(() => RansomGuard.Scan(RansomGuard.JobSources(), DateTime.Now.AddDays(-30), CancellationToken.None));
         GuardResult.Text = (r.Alarm ? "ŞÜPHE VAR. " : "Sorun bulunmadı. ") + r.Summary;
     });
+
+    private void PickWork_Click(object sender, RoutedEventArgs e)
+    {
+        var d = new OpenFolderDialog { Title = "Geçici klasör" };
+        if (d.ShowDialog(Ui.Owner(this)) == true) WorkDir.Text = d.FolderName;
+    }
+
+    private void SaveWork_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            WorkFolder.Save(WorkDir.Text, (int)(WorkKeep.Value ?? 1));
+            var path = WorkFolder.Chosen;
+            WorkResult.Text = path == null ? "Kaydedildi. Windows geçici klasörü kullanılacak." : $"Kaydedildi. Boş alan: {Fmt.Size(new DriveInfo(path).AvailableFreeSpace)}";
+        }
+        catch (Exception x) when (x is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            WorkResult.Text = x.Message;
+        }
+    }
 
     private SmtpSettings ReadMail()
     {

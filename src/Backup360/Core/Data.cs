@@ -43,7 +43,7 @@ public sealed class Job
     public string Group { get; set; } = "Genel";
     public string SyncKind { get; set; } = "folder";   // folder | sql
     public long SyncFromJob { get; set; }   // SQL eşitlemede yedekleri alınacak iş
-    public bool UseDateFolder { get; set; } = true;   // false: alt klasör arşivleri doğrudan iş klasörüne yazılır
+    public bool UseDateFolder { get; set; } = true;   // false: alt klasörler çalıştırma başına tek klasöre yazılır (gg-aa-yyyy_ss_dd)
     public string DatedOutput { get; set; } = "archive";   // archive: sıkıştırılmış | folder: klasör olarak
     public int DaysFilter { get; set; }   // >0 ise yalnızca son N günde değişen alt klasörler
     public int KeepDays { get; set; }     // >0 ise N günden eski yedekler silinir
@@ -124,7 +124,13 @@ public static class Db
               size INTEGER NOT NULL, md5 TEXT NOT NULL, created TEXT NOT NULL, last_check TEXT, status TEXT NOT NULL DEFAULT 'unknown', detail TEXT NOT NULL DEFAULT '',
               PRIMARY KEY(target, base, path));
             CREATE TABLE IF NOT EXISTS job_state(job_id INTEGER NOT NULL, item TEXT NOT NULL COLLATE NOCASE, fingerprint TEXT NOT NULL, PRIMARY KEY(job_id, item));
+            CREATE TABLE IF NOT EXISTS targets(name TEXT PRIMARY KEY COLLATE NOCASE, type TEXT NOT NULL, data TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS problems(
+              id INTEGER PRIMARY KEY, time TEXT NOT NULL, kind TEXT NOT NULL, ref_id INTEGER NOT NULL, name TEXT NOT NULL,
+              item TEXT NOT NULL, level TEXT NOT NULL, message TEXT NOT NULL, resolved TEXT);
+            CREATE INDEX IF NOT EXISTS ix_problems_open ON problems(resolved, kind, ref_id);
             """);
+        TargetStore.ImportLegacy();
     }
 
     private static string Now() => DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
@@ -191,6 +197,8 @@ public static class Db
     public static void SetSetting(string key, string value) =>
         Exec("INSERT INTO settings(key,value) VALUES($k,$v) ON CONFLICT(key) DO UPDATE SET value=$v", ("$k", key), ("$v", value));
 
+    public static void DeleteSetting(string key) => Exec("DELETE FROM settings WHERE key=$k", ("$k", key));
+
     // ---- işler ve kurallar
     private static T Parse<T>(long id, string json) where T : class
     {
@@ -239,6 +247,27 @@ public static class Db
     public static void FinishRun(long id, string status, string detail, long bytes) =>
         Exec("UPDATE runs SET ended=$e,status=$s,detail=$d,bytes=$b WHERE id=$i",
             ("$e", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)), ("$s", status), ("$d", detail), ("$b", bytes), ("$i", id));
+
+    private const string Interrupted = "Çalışma yarıda kesildi: uygulama veya bilgisayar kapandı.";
+
+    /// <summary>Bir işin bitiş kaydı yazılamamış çalışmalarını kapatır.</summary>
+    public static int CloseOrphanRuns(string kind, long refId) =>
+        Exec("UPDATE runs SET ended=$e,status='failed',detail=$d WHERE kind=$k AND ref_id=$r AND status='running'",
+            ("$e", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)), ("$d", Interrupted), ("$k", kind), ("$r", refId));
+
+    /// <summary>Canlı süreci kalmamış çalışmaları kapatır. Yeni başlayan iş etkilenmesin diye son iki dakika atlanır.</summary>
+    public static int CloseOrphanRuns(ICollection<string> liveKeys)
+    {
+        var limit = DateTime.Now.AddMinutes(-2).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        var closed = 0;
+        foreach (var run in Query($"SELECT {RunColumns} FROM runs WHERE status='running' AND kind IN ('job','rule','audit') AND started<$l", MapRun, ("$l", limit)))
+        {
+            if (liveKeys.Contains($"{run.Kind}-{run.RefId}")) continue;
+            closed += Exec("UPDATE runs SET ended=$e,status='failed',detail=$d WHERE id=$i AND status='running'",
+                ("$e", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)), ("$d", Interrupted), ("$i", run.Id));
+        }
+        return closed;
+    }
 
     public static void DeleteRun(long id) => Exec("DELETE FROM runs WHERE id=$i", ("$i", id));
 

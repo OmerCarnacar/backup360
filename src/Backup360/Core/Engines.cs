@@ -24,7 +24,11 @@ public static class Validation
                 throw new ArgumentException($"Aynı ada sahip iki veritabanı seçilemez: {clash.Key}");
         }
         else if (j.Sources.Count == 0) throw new ArgumentException("En az bir dosya veya klasör seçin.");
-        if (j.Targets.Count == 0) throw new ArgumentException("En az bir hedef seçin.");
+        if (j.Targets.Count == 0) throw new ArgumentException("Yerel klasöre yedeklemeyi veya en az bir hedefe göndermeyi seçin.");
+        // Yedek klasörü kaynağın içindeyse her çalışmada kendi yedeklerini de yedekler.
+        foreach (var local in j.Targets.Where(Cloud.IsLocalPath))
+            if (j.Mode != "database" && j.Sources.FirstOrDefault(s => Directory.Exists(s) && WorkFolder.IsInside(local, s)) is { } inside)
+                throw new ArgumentException($"Yerel yedek klasörü yedeklenen klasörün içinde olamaz: {inside}");
         if (j.Mode == "mirror" || (j.Mode == "dated" && j.DatedOutput == "folder")) return;   // Sıkıştırmasız gönderimde arşiv ayarları kullanılmaz.
         if (j.Formats.Count == 0) throw new ArgumentException("En az bir sıkıştırma formatı seçin.");
 

@@ -69,7 +69,10 @@
                         <ui:Button Content="Kaldır" Icon="{ui:SymbolIcon Delete24}" Click="RemoveSource_Click" />
                     </WrapPanel>
                     <TextBlock Text="Hariç tutulacaklar (noktalı virgülle, örn: *.tmp;node_modules)" Style="{StaticResource FieldLabel}" />
-                    <ui:TextBox x:Name="Excludes" />
+                    <ui:TextBox x:Name="Excludes" TextChanged="Excludes_Changed" />
+                    <CheckBox x:Name="SkipRebuildable" Margin="0,10,0,0" Click="SkipRebuildable_Click">
+                        <TextBlock x:Name="SkipRebuildableText" TextWrapping="Wrap" />
+                    </CheckBox>
                 </StackPanel>
             </TabItem>
 
@@ -89,10 +92,17 @@
             <TabItem Header="Hedef ve zamanlama">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="8,14,18,14">
-                        <TextBlock Text="Hedefler" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
-                        <StackPanel x:Name="Targets" />
-                        <TextBlock x:Name="NoTargets" Text="Henüz hedef yok. Önce Hedefler sayfasından bir hedef tanımlayın." Foreground="#F87171" Visibility="Collapsed" />
-                        <TextBlock Text="Hedefteki ana klasör" Style="{StaticResource FieldLabel}" />
+                        <TextBlock Text="Nereye yedeklensin? Birini veya ikisini birden seçebilirsiniz." Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
+                        <CheckBox x:Name="LocalOn" Content="Yerel klasöre yedekle (bu bilgisayar, USB disk veya ağ yolu; buluta gönderilmez)" Checked="AnyChanged" Unchecked="AnyChanged" />
+                        <Grid x:Name="LocalRow" Margin="28,4,0,6">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <ui:TextBox x:Name="LocalFolder" PlaceholderText="Örnek: E:\Yedekler" />
+                            <ui:Button Grid.Column="1" Content="Seç" Icon="{ui:SymbolIcon Folder24}" Margin="8,0,0,0" Click="PickLocal_Click" />
+                        </Grid>
+                        <CheckBox x:Name="CloudOn" Content="Buluta veya uzak hedefe gönder" Margin="0,6,0,0" Checked="AnyChanged" Unchecked="AnyChanged" />
+                        <StackPanel x:Name="Targets" Margin="28,2,0,0" />
+                        <TextBlock x:Name="NoTargets" Text="Tanımlı hedef yok. Buluta göndermek için önce Hedefler sayfasından bir hedef tanımlayın." Style="{StaticResource Muted}" Margin="28,2,0,0" TextWrapping="Wrap" Visibility="Collapsed" />
+                        <TextBlock Text="Ana klasör (yerel klasörde ve hedefte aynı ad kullanılır)" Style="{StaticResource FieldLabel}" />
                         <ui:TextBox x:Name="Folder" />
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>

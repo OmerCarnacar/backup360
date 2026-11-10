@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Runtime.ExceptionServices;
+using System.Threading.Channels;
 
 namespace Backup360.Core;
 
@@ -8,6 +10,12 @@ public static class BackupRunner
 
     /// <summary>RemotePath: klasör olarak gönderimde gün klasörünün altındaki yol.</summary>
     private sealed record Item(string Name, List<string> Paths, string? DateFolder, string? Fingerprint, string? RemotePath = null);
+
+    /// <summary>Sıkıştırılmış, gönderim sırasında bekleyen arşiv.</summary>
+    private sealed record Packed(Item Item, FormatDef Format, string Label, string File, ItemTracker Tracker);
+
+    private const int UploadWorkers = 2;
+    private const int QueueLimit = 3;
 
     public static async Task<Outcome> RunAsync(long jobId, Action<string>? ui, CancellationToken ct)
     {
@@ -20,8 +28,11 @@ public static class BackupRunner
         }
 
         using var log = new RunLog($"Yedekleme: {job.Name}", ui, "job", job.Id, job.Name, job.Mode);
+        // Kilit bizdeyse bu işin "çalışıyor" görünen eski kaydı yarıda kesilmiş bir çalışmadır.
+        Db.CloseOrphanRuns("job", job.Id);
         var runId = Db.StartRun("job", job.Id, job.Name);
-        var work = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "Backup360", Guid.NewGuid().ToString("N"))).FullName;
+        var space = WorkFolder.Create(job, log.Write);
+        var work = space.Work;
         var outcome = new Outcome("failed", "", 0);
         var started = DateTime.Now;
         try
@@ -35,9 +46,9 @@ public static class BackupRunner
             outcome = job.Mode switch
             {
                 "mirror" => await MirrorAsync(job, log, ct),
-                "database" => await DatabaseAsync(job, work, log, ct),
+                "database" => await DatabaseAsync(job, space, log, ct),
                 "sync" => await SyncAsync(job, log, ct),
-                _ => await ArchiveAsync(job, work, log, ct),
+                _ => await ArchiveAsync(job, space, log, ct),
             };
             return outcome;
         }
@@ -69,8 +80,8 @@ public static class BackupRunner
 
     private static async Task CheckTargetsAsync(Job job, CancellationToken ct)
     {
-        var known = (await Cloud.ListTargetsAsync(ct)).Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var missing = job.Targets.Where(t => !known.Contains(t)).ToList();
+        await Task.CompletedTask;
+        var missing = job.Targets.Where(t => !Cloud.TargetExists(t)).ToList();
         if (missing.Count > 0) throw new InvalidOperationException("Hedef bağlı değil: " + string.Join(", ", missing));
     }
 
@@ -136,7 +147,7 @@ public static class BackupRunner
     {
         Validation.Check(job);
         await CheckTargetsAsync(job, ct);
-        var folder = $"{job.RemoteFolder.Trim('/', '\\')}/{Cloud.SafeName(job.Name)}";
+        var folder = Cloud.JobFolder(job);
         var stamp = Cloud.Stamp();
         var errors = new List<string>();
         var warnings = false;
@@ -191,7 +202,7 @@ public static class BackupRunner
     }
 
     /// <summary>Her alt klasör ayrı öğedir. Klasör köküne doğrudan konmuş dosyalar da atlanmaz, tek öğede toplanır.</summary>
-    private static List<Item> BuildDatedItems(Job job, RunLog log)
+    private static List<Item> BuildDatedItems(Job job, string runFolder, RunLog log)
     {
         var today = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var items = new List<Item>();
@@ -231,17 +242,18 @@ public static class BackupRunner
                 log.Write($"  değişmedi, atlandı: {name}");
                 return;
             }
-            var date = !job.UseDateFolder ? null : job.DateBy == "folder" ? last.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : today;
+            var date = !job.UseDateFolder ? runFolder : job.DateBy == "folder" ? last.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : today;
             items.Add(new Item(name, paths, date, fingerprint, remotePath));
         }
     }
 
-    private static async Task<Outcome> ArchiveAsync(Job job, string work, RunLog log, CancellationToken ct)
+    private static async Task<Outcome> ArchiveAsync(Job job, WorkSpace space, RunLog log, CancellationToken ct)
     {
+        var (work, runFolder) = (space.Work, WorkFolder.RunFolder());
         Validation.Check(job);
         await CheckTargetsAsync(job, ct);
         var password = Secrets.Unprotect(job.PasswordEnc);
-        var baseFolder = $"{job.RemoteFolder.Trim('/', '\\')}/{Cloud.SafeName(job.Name)}";
+        var baseFolder = Cloud.JobFolder(job);
         var stamp = Cloud.Stamp();
         var warnings = false;
 
@@ -251,7 +263,7 @@ public static class BackupRunner
             if (!job.Sources.Any(Directory.Exists)) throw new IOException("Kaynak klasörlerin hiçbiri bulunamadı.");
             warnings = !job.Sources.All(Directory.Exists);
             Stage(log, "scan", "Klasörler taranıyor");
-            items = BuildDatedItems(job, log);
+            items = BuildDatedItems(job, runFolder, log);
         }
         else
         {
@@ -271,8 +283,9 @@ public static class BackupRunner
         if (job.Mode == "dated" && job.DatedOutput == "folder")
             return await SendFoldersAsync(job, items, baseFolder, stamp, warnings, work, log, ct);
 
-        var run = new ItemRun(job, work, baseFolder, stamp, password, log, items.Count * job.Formats.Count) { Warnings = warnings };
-        foreach (var item in items) await ProcessItemAsync(run, item, ct);
+        var run = new ItemRun(job, work, baseFolder, stamp, password, log, items.Count * job.Formats.Count) { Warnings = warnings, LocalFolder = WorkFolder.RunDirectory(space.Store, runFolder) };
+        await RunPipelineAsync(run, async () => { foreach (var item in items) await CompressItemAsync(run, item, ct); }, ct);
+        WorkFolder.Prune(space.Store, WorkFolder.KeepDays, DateTime.Today, log.Write);
         return Finish(run, $"{items.Count} öğe, {job.Formats.Count} format, {job.Targets.Count} hedef");
     }
 
@@ -319,6 +332,7 @@ public static class BackupRunner
 
     private sealed class ItemRun(Job job, string work, string baseFolder, string stamp, string? password, RunLog log, int steps)
     {
+        private readonly object _gate = new();
         public Job Job { get; } = job;
         public string Work { get; } = work;
         public string BaseFolder { get; } = baseFolder;
@@ -329,8 +343,102 @@ public static class BackupRunner
         public int Step { get; set; }
         public long Total { get; set; }
         public bool Warnings { get; set; }
-        public bool Corrupt { get; set; }
+        public bool Corrupt { get; private set; }
         public List<string> Errors { get; } = new();
+        /// <summary>Doluysa arşivler gönderimden sonra da burada kalır.</summary>
+        public string? LocalFolder { get; init; }
+        public Channel<Packed> Queue { get; } = Channel.CreateBounded<Packed>(new BoundedChannelOptions(QueueLimit) { SingleWriter = true });
+        public SemaphoreSlim Retention { get; } = new(1, 1);
+        public SendBoard Board { get; } = new(log);
+
+        public void AddBytes(long bytes) { lock (_gate) Total += bytes; }
+
+        public void Fail(string label, string message, bool corrupt)
+        {
+            lock (_gate)
+            {
+                Errors.Add($"{label}: {message}");
+                Corrupt |= corrupt;
+            }
+        }
+    }
+
+    /// <summary>Bir öğenin tüm format ve hedeflere ulaştığını izler; kalanlar sonraki turda yeniden denenir.</summary>
+    private sealed class ItemTracker(Job job, Item item, int parts)
+    {
+        private readonly object _gate = new();
+        private int _left = parts;
+        private bool _ok = true;
+
+        public void Done(bool ok)
+        {
+            bool complete;
+            lock (_gate)
+            {
+                _ok &= ok;
+                complete = --_left == 0 && _ok;
+            }
+            if (complete && item.Fingerprint != null) Db.SetFingerprint(job.Id, item.Name, item.Fingerprint);
+        }
+    }
+
+    /// <summary>Arka plandaki gönderimleri canlı duruma yazar. Sıkıştırma bitince ilk gönderim ana göstergeye geçer.</summary>
+    private sealed class SendBoard(RunLog log)
+    {
+        private readonly object _gate = new();
+        private readonly List<SendLine> _lines = new();
+        private bool _alone;
+
+        public void CompressionFinished()
+        {
+            lock (_gate) _alone = true;
+            Stage(log, "upload", "Gönderimler tamamlanıyor");
+            Publish(null, null);
+        }
+
+        public void Show(string label, string stage, int percent = -1) => Set(new SendLine(label, stage, percent, 0, -1), null);
+
+        public void Report(string label, TransferStats s) =>
+            Set(new SendLine(label, "upload", s.Total > 0 ? (int)(s.Bytes * 100 / s.Total) : -1, s.Speed, s.Eta), s);
+
+        public void Remove(string label)
+        {
+            lock (_gate) _lines.RemoveAll(l => l.Label == label);
+            Publish(null, null);
+        }
+
+        private void Set(SendLine line, TransferStats? stats)
+        {
+            lock (_gate)
+            {
+                var index = _lines.FindIndex(l => l.Label == line.Label);
+                if (index >= 0) _lines[index] = line;
+                else _lines.Add(line);
+            }
+            Publish(line, stats);
+        }
+
+        private void Publish(SendLine? changed, TransferStats? stats)
+        {
+            List<SendLine> visible;
+            bool lead;
+            lock (_gate)
+            {
+                lead = _alone && changed != null && _lines.FirstOrDefault()?.Label == changed.Label;
+                visible = (_alone ? _lines.Skip(1) : _lines).ToList();
+            }
+            log.Update(l =>
+            {
+                l.Sending = visible;
+                if (!lead) return;
+                l.Stage = changed!.Stage;
+                l.Item = changed.Label;
+                l.Percent = changed.Percent;
+                if (stats != null) return;
+                l.Speed = 0; l.Eta = -1; l.Done = 0; l.Total = 0;
+            });
+            if (lead && stats != null) ApplyStats(log, stats);
+        }
     }
 
     private static Outcome Finish(ItemRun run, string summary)
@@ -343,13 +451,28 @@ public static class BackupRunner
         return new Outcome(status, detail, run.Total);
     }
 
-    /// <summary>Bir öğeyi her formatta arşivler, doğrular, tüm hedeflere gönderir.</summary>
-    private static async Task ProcessItemAsync(ItemRun run, Item item, CancellationToken ct)
+    /// <summary>Sıkıştırma tek tek yürür; bellek yetmezliğini önler. Gönderim arka planda sürer, ikisi birbirini beklemez.</summary>
+    private static async Task RunPipelineAsync(ItemRun run, Func<Task> compress, CancellationToken ct)
+    {
+        if (run.LocalFolder != null) run.Log.Write($"Yerel yedek klasörü: {run.LocalFolder}");
+        var workers = Enumerable.Range(0, UploadWorkers).Select(_ => Task.Run(() => SendWorkerAsync(run, ct), CancellationToken.None)).ToArray();
+        ExceptionDispatchInfo? failure = null;
+        try { await compress(); }
+        catch (Exception e) { failure = ExceptionDispatchInfo.Capture(e); }
+
+        run.Queue.Writer.TryComplete();
+        run.Board.CompressionFinished();
+        try { await Task.WhenAll(workers); }
+        catch (OperationCanceledException) when (failure != null) { }
+        failure?.Throw();
+    }
+
+    /// <summary>Bir öğeyi her formatta arşivler ve gönderim sırasına koyar.</summary>
+    private static async Task CompressItemAsync(ItemRun run, Item item, CancellationToken ct)
     {
         var (job, log) = (run.Job, run.Log);
-        var folder = item.DateFolder == null ? run.BaseFolder : $"{run.BaseFolder}/{item.DateFolder}";
         var request = new ArchiveRequest(item.Paths, job.Excludes, Path.Combine(run.Work, $"{item.Name}_{run.Stamp}"), job.Level, run.Password);
-        var itemOk = true;
+        var tracker = new ItemTracker(job, item, job.Formats.Count);
         foreach (var key in job.Formats)
         {
             run.Step++;
@@ -357,58 +480,93 @@ public static class BackupRunner
             log.Update(l => { l.Step = current; l.Steps = run.Steps; });
             var format = Formats.Get(key);
             var label = $"{item.Name}.{key}";
-            string? file = null;
             try
             {
                 Stage(log, "archive", label);
                 log.Write($"[{label}] sıkıştırılıyor...");
                 var result = await Archiver.CreateAsync(format, request, log.Write, ct, p => log.Update(l => l.Percent = p));
-                file = result.Path;
                 run.Warnings |= result.HadWarnings;
-                var size = new FileInfo(file).Length;
-
-                Stage(log, "verify", label);
-                log.Write($"[{label}] doğrulanıyor ({size / 1048576.0:0.0} MB)...");
-                try { await Archiver.VerifyAsync(format, file, run.Password, ct, p => log.Update(l => l.Percent = p)); }
-                catch (Exception e) when (e is not OperationCanceledException) { throw new BackupCorruptException($"Arşiv bozuk, gönderilmedi: {e.Message}", e); }
-
-                var fingerprint = await Task.Run(() => BackupAudit.Md5Of(file), ct);
-                var relative = item.DateFolder == null ? Path.GetFileName(file) : $"{item.DateFolder}/{Path.GetFileName(file)}";
-                foreach (var target in job.Targets)
+                var packed = new Packed(item, format, label, result.Path, tracker);
+                if (!run.Queue.Writer.TryWrite(packed))
                 {
-                    Stage(log, "upload", label);
-                    log.Write($"[{label}] gönderiliyor: {target}:{folder}");
-                    await Cloud.UploadAsync(file, target, folder, log.Write, s => ApplyStats(log, s), ct);
-                    Db.RecordBackup(target, run.BaseFolder, relative, job.Id, job.Name, size, fingerprint);
-                    Stage(log, "retention", label);
-                    await Cloud.ApplyRetentionAsync(target, run.BaseFolder, format.Extension, job.Keep, job.KeepDays, log.Write, ct);
+                    Stage(log, "upload", "Gönderim sırası bekleniyor");
+                    await run.Queue.Writer.WriteAsync(packed, ct);
                 }
-                run.Total += size;
-                log.Write($"[{label}] tamam.");
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception e)
             {
                 log.Write($"[{label}] HATA: {e.Message}");
-                run.Errors.Add($"{label}: {e.Message}");
-                run.Corrupt |= e is BackupCorruptException;
-                itemOk = false;
+                run.Fail(label, e.Message, e is BackupCorruptException);
+                tracker.Done(false);
+            }
+        }
+    }
+
+    /// <summary>Sıradaki arşivi doğrular ve tüm hedeflere gönderir.</summary>
+    private static async Task SendWorkerAsync(ItemRun run, CancellationToken ct)
+    {
+        var (job, log) = (run.Job, run.Log);
+        await foreach (var p in run.Queue.Reader.ReadAllAsync(ct))
+        {
+            var folder = p.Item.DateFolder == null ? run.BaseFolder : $"{run.BaseFolder}/{p.Item.DateFolder}";
+            var file = p.File;
+            var keepLocal = false;
+            var ok = false;
+            try
+            {
+                var size = new FileInfo(file).Length;
+                run.Board.Show(p.Label, "verify");
+                log.Write($"[{p.Label}] doğrulanıyor ({size / 1048576.0:0.0} MB)...");
+                try { await Archiver.VerifyAsync(p.Format, file, run.Password, ct, percent => run.Board.Show(p.Label, "verify", percent)); }
+                catch (Exception e) when (e is not OperationCanceledException) { throw new BackupCorruptException($"Arşiv bozuk, gönderilmedi: {e.Message}", e); }
+                if (run.LocalFolder != null)
+                {
+                    // Yarım veya bozuk arşiv saklama klasörüne hiç girmez.
+                    var kept = Path.Combine(run.LocalFolder, Path.GetFileName(file));
+                    File.Move(file, kept, true);
+                    (file, keepLocal) = (kept, true);
+                }
+
+                var fingerprint = await Task.Run(() => BackupAudit.Md5Of(file), ct);
+                var name = Path.GetFileName(file);
+                var relative = p.Item.DateFolder == null ? name : $"{p.Item.DateFolder}/{name}";
+                foreach (var target in job.Targets)
+                {
+                    run.Board.Show(p.Label, "upload");
+                    log.Write($"[{p.Label}] gönderiliyor: {target}:{folder}");
+                    await Cloud.UploadAsync(file, target, folder, log.Write, s => run.Board.Report(p.Label, s), ct);
+                    Db.RecordBackup(target, run.BaseFolder, relative, job.Id, job.Name, size, fingerprint);
+                    run.Board.Show(p.Label, "retention");
+                    await run.Retention.WaitAsync(ct);
+                    try { await Cloud.ApplyRetentionAsync(target, run.BaseFolder, p.Format.Extension, job.Keep, job.KeepDays, log.Write, ct); }
+                    finally { run.Retention.Release(); }
+                }
+                run.AddBytes(size);
+                log.Write($"[{p.Label}] tamam.");
+                ok = true;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception e)
+            {
+                log.Write($"[{p.Label}] HATA: {e.Message}");
+                run.Fail(p.Label, e.Message, e is BackupCorruptException);
             }
             finally
             {
-                // Sonraki format için disk yeri açılır.
-                if (file != null) try { File.Delete(file); } catch (IOException) { }
+                run.Board.Remove(p.Label);
+                if (!keepLocal) TryDelete(file);
             }
+            p.Tracker.Done(ok);
         }
-        // Yalnızca tüm format ve hedeflere ulaşan klasör "gönderildi" sayılır; kalanlar sonraki turda yeniden denenir.
-        if (itemOk && item.Fingerprint != null) Db.SetFingerprint(job.Id, item.Name, item.Fingerprint);
     }
 
-    private static async Task<Outcome> DatabaseAsync(Job job, string work, RunLog log, CancellationToken ct)
+    private static async Task<Outcome> DatabaseAsync(Job job, WorkSpace space, RunLog log, CancellationToken ct)
     {
+        var (work, runFolder) = (space.Work, WorkFolder.RunFolder());
         Validation.Check(job);
         await CheckTargetsAsync(job, ct);
-        var baseFolder = $"{job.RemoteFolder.Trim('/', '\\')}/{Cloud.SafeName(job.Name)}";
+        var baseFolder = Cloud.JobFolder(job);
         var today = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var stamp = Cloud.Stamp();
         var password = Secrets.Unprotect(job.PasswordEnc);
@@ -585,29 +743,32 @@ public static class BackupRunner
                 break;
         }
 
-        var run = new ItemRun(job, work, baseFolder, stamp, password, log, plan.Count * job.Formats.Count) { Warnings = warnings };
+        var run = new ItemRun(job, work, baseFolder, stamp, password, log, plan.Count * job.Formats.Count) { Warnings = warnings, LocalFolder = WorkFolder.RunDirectory(space.Store, runFolder) };
         run.Errors.AddRange(preErrors);
-        foreach (var (name, produce) in plan)
+        await RunPipelineAsync(run, async () =>
         {
-            string? file = null;
-            try
+            foreach (var (name, produce) in plan)
             {
-                (file, _) = await produce();
-                run.Warnings |= restoreSkipped;
-                await ProcessItemAsync(run, new Item(name, new List<string> { file }, today, null), ct);
+                string? file = null;
+                try
+                {
+                    (file, _) = await produce();
+                    run.Warnings |= restoreSkipped;
+                    await CompressItemAsync(run, new Item(name, new List<string> { file }, today, null), ct);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or Microsoft.Data.SqlClient.SqlException or Microsoft.Data.Sqlite.SqliteException)
+                {
+                    log.Write($"[{name}] HATA: {e.Message}");
+                    run.Fail(name, e.Message, e is BackupCorruptException);
+                }
+                finally
+                {
+                    if (file != null) TryDelete(file);
+                }
             }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or Microsoft.Data.SqlClient.SqlException or Microsoft.Data.Sqlite.SqliteException)
-            {
-                log.Write($"[{name}] HATA: {e.Message}");
-                run.Errors.Add($"{name}: {e.Message}");
-                run.Corrupt |= e is BackupCorruptException;
-            }
-            finally
-            {
-                if (file != null) TryDelete(file);
-            }
-        }
+        }, ct);
+        WorkFolder.Prune(space.Store, WorkFolder.KeepDays, DateTime.Today, log.Write);
 
         if (plan.Count == 0 && run.Errors.Count == 0)
         {

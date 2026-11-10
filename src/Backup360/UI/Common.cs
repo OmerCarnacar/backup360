@@ -63,6 +63,14 @@ public static class Fmt
         return $"{t.Seconds} sn";
     }
 
+    /// <summary>Canlı göstergelerdeki tek süre biçimi: saat:dakika:saniye.</summary>
+    public static string Clock(double seconds)
+    {
+        if (seconds < 0 || double.IsNaN(seconds) || double.IsInfinity(seconds)) return "—";
+        var t = TimeSpan.FromSeconds(Math.Min(seconds, 359_999));
+        return $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00}";
+    }
+
     public static double RunSeconds(RunRecord r) =>
         DateTime.TryParse(r.Started, out var s) && DateTime.TryParse(r.Ended, out var e) ? Math.Max(0, (e - s).TotalSeconds) : 0;
 
@@ -124,11 +132,14 @@ public sealed class LiveCardVm(ICommand? stop = null) : Observable
         ["retention"] = "Eski yedekler temizleniyor", ["sqlbackup"] = "Veritabanı yedekleniyor", ["sqlverify"] = "Yedek doğrulanıyor", ["sqlrestore"] = "Geri yükleme sınavı ve CHECKDB", ["move"] = "Taşınıyor",
     };
 
+    public const int FlowLines = 7;
+
     private Visibility _visibility = Visibility.Collapsed;
     private double _percent;
     private bool _indeterminate = true;
-    private string _stage = "", _percentText = "", _item = "", _stats = "", _flow = "";
+    private string _stage = "", _percentText = "", _item = "", _stats = "", _flow = "", _sending = "";
     private Visibility _stopVisibility = Visibility.Collapsed;
+    private Visibility _sendingVisibility = Visibility.Collapsed;
 
     public ICommand? Stop { get; } = stop;
     public Visibility Visibility { get => _visibility; private set => Set(ref _visibility, value); }
@@ -139,7 +150,53 @@ public sealed class LiveCardVm(ICommand? stop = null) : Observable
     public string Item { get => _item; private set => Set(ref _item, value); }
     public string Stats { get => _stats; private set => Set(ref _stats, value); }
     public string Flow { get => _flow; private set => Set(ref _flow, value); }
+    public string Sending
+    {
+        get => _sending;
+        private set
+        {
+            Set(ref _sending, value);
+            SendingVisibility = value.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+    public Visibility SendingVisibility { get => _sendingVisibility; private set => Set(ref _sendingVisibility, value); }
     public Visibility StopVisibility { get => _stopVisibility; private set => Set(ref _stopVisibility, value); }
+
+    // Her işte aynı yerde duran altı gösterge; bilinmeyen değer "—" olarak görünür.
+    private string _speed = "—", _eta = "—", _elapsed = "—", _size = "—", _files = "—", _step = "—";
+    public string Speed { get => _speed; private set => Set(ref _speed, value); }
+    public string Eta { get => _eta; private set => Set(ref _eta, value); }
+    public string Elapsed { get => _elapsed; private set => Set(ref _elapsed, value); }
+    public string SizeText { get => _size; private set => Set(ref _size, value); }
+    public string Files { get => _files; private set => Set(ref _files, value); }
+    public string StepText { get => _step; private set => Set(ref _step, value); }
+
+    private string _trackKey = "";
+    private DateTime _trackStart;
+    private int _trackPercent;
+
+    /// <summary>
+    /// Kalan süre: aktarımda sağlayıcının hesabı kullanılır. Sıkıştırma gibi yalnızca yüzde bildiren
+    /// aşamalarda, o öğenin şimdiye kadarki ilerleme hızından tahmin edilir.
+    /// </summary>
+    public double EstimateEta(LiveState s, DateTime now)
+    {
+        var key = $"{s.Stage}|{s.Item}";
+        if (key != _trackKey || s.Percent < _trackPercent) (_trackKey, _trackStart, _trackPercent) = (key, now, Math.Max(0, s.Percent));
+        if (s.Eta >= 0) return s.Eta;
+        var gained = s.Percent - _trackPercent;
+        var spent = (now - _trackStart).TotalSeconds;
+        return gained >= 2 && spent >= 3 && s.Percent < 100 ? spent * (100 - s.Percent) / gained : -1;
+    }
+
+    public static double ElapsedSeconds(string started, DateTime now)
+    {
+        if (!TimeSpan.TryParse(started, out var time)) return -1;
+        var begin = now.Date + time;
+        if (begin > now.AddMinutes(1)) begin = begin.AddDays(-1);   // Gece yarısından önce başlamış
+        return Math.Max(0, (now - begin).TotalSeconds);
+    }
+
     public bool IsActive => Visibility == Visibility.Visible;
     public DateTime StartedAt { get; private set; }
     public bool PendingExpired => DateTime.Now - StartedAt > TimeSpan.FromSeconds(10);
@@ -148,7 +205,8 @@ public sealed class LiveCardVm(ICommand? stop = null) : Observable
     {
         StartedAt = DateTime.Now;
         Stage = stage;
-        Item = Stats = PercentText = "";
+        Item = Stats = PercentText = Sending = "";
+        Speed = Eta = Elapsed = SizeText = Files = StepText = "—";
         Flow = "";
         Indeterminate = true;
         StopVisibility = stop != null ? Visibility.Visible : Visibility.Collapsed;
@@ -162,18 +220,29 @@ public sealed class LiveCardVm(ICommand? stop = null) : Observable
         if (!IsActive) StartedAt = DateTime.Now;
         Visibility = Visibility.Visible;
         StopVisibility = stop != null ? Visibility.Visible : Visibility.Collapsed;
-        Stage = (Stages.GetValueOrDefault(s.Stage, "Hazırlanıyor")) + (s.Steps > 1 ? $"  ·  Adım {s.Step}/{s.Steps}" : "");
+        Stage = Stages.GetValueOrDefault(s.Stage, "Hazırlanıyor");
         Indeterminate = s.Percent < 0;
         Percent = Math.Max(0, s.Percent);
         PercentText = s.Percent >= 0 ? $"%{s.Percent}" : "";
         Item = s.Item;
+        var now = DateTime.Now;
+        Speed = s.Speed > 0 ? $"{Fmt.Size(s.Speed)}/sn" : "—";
+        Eta = Fmt.Clock(EstimateEta(s, now));
+        Elapsed = Fmt.Clock(ElapsedSeconds(s.Started, now));
+        SizeText = s.Total > 0 ? $"{Fmt.Size(s.Done)} / {Fmt.Size(s.Total)}" : "—";
+        Files = s.FilesTotal > 0 ? $"{s.Files} / {s.FilesTotal}" : "—";
+        StepText = s.Steps > 0 ? $"{s.Step} / {s.Steps}" : "—";
         var parts = new List<string>();
         if (s.Speed > 0) parts.Add($"{Fmt.Size(s.Speed)}/sn");
         if (s.Eta >= 0) parts.Add($"Kalan {Fmt.Duration(s.Eta)}");
         if (s.Total > 0) parts.Add($"{Fmt.Size(s.Done)} / {Fmt.Size(s.Total)}");
         if (s.FilesTotal > 0) parts.Add($"Dosya {s.Files}/{s.FilesTotal}");
         Stats = string.Join("  ·  ", parts);
-        Flow = string.Join("\n", s.Transfers.Take(3).Concat(s.Log.TakeLast(5)));
+        Sending = string.Join("\n", s.Sending.Select(l =>
+            $"{Stages.GetValueOrDefault(l.Stage, l.Stage)}: {l.Label}{(l.Percent >= 0 ? $"  %{l.Percent}" : "")}{(l.Speed > 0 ? $"  ·  {Fmt.Size(l.Speed)}/sn" : "")}{(l.Eta >= 0 ? $"  ·  Kalan {Fmt.Clock(l.Eta)}" : "")}"));
+        // Akış alanı her kartta aynı yükseklikte: önce süren aktarımlar, sonra son kayıtlar.
+        var active = s.Transfers.Take(3).ToList();
+        Flow = string.Join("\n", active.Concat(s.Log.TakeLast(FlowLines - active.Count)));
     }
 
     public void Hide() => Visibility = Visibility.Collapsed;

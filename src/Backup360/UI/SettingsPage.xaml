@@ -71,6 +71,24 @@
             </StackPanel>
         </ui:Card>
 
+        <TextBlock Text="Geçici klasör ve yerel yedekler" Style="{StaticResource Section}" />
+        <ui:Card Padding="18" VerticalContentAlignment="Top">
+            <StackPanel>
+                <TextBlock Text="Sıkıştırma önce burada yapılır, sonra gönderilir. Arşivler iş adı ve 09-11-2026_17_10 biçimindeki klasörlerde saklanır. Boş bırakılırsa Windows'un geçici klasörü kullanılır ve yerel kopya tutulmaz." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10" />
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <ui:TextBox x:Name="WorkDir" PlaceholderText="Örnek: D:\Temp" />
+                    <ui:Button Grid.Column="1" Content="Seç" Icon="{ui:SymbolIcon Folder24}" Margin="8,0,0,0" Click="PickWork_Click" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                    <TextBlock Text="Yerelde kaç günün yedeği kalsın (1 = yalnızca bugün, 0 = gönderince sil)" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ui:NumberBox x:Name="WorkKeep" Minimum="0" Maximum="3650" Width="130" Margin="0,0,10,0" />
+                    <ui:Button Content="Kaydet" Icon="{ui:SymbolIcon Save24}" Appearance="Primary" Click="SaveWork_Click" />
+                </StackPanel>
+                <TextBlock x:Name="WorkResult" Margin="0,10,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+        </ui:Card>
+
         <TextBlock Text="Kullanıcılar" Style="{StaticResource Section}" />
         <ui:Card Padding="18">
             <StackPanel>

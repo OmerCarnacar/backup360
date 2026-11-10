@@ -38,6 +38,7 @@ public partial class JobEditorWindow
         OnlyChanged.IsChecked = job.OnlyChanged;
 
         foreach (var s in job.Sources) Sources.Items.Add(s);
+        SkipRebuildableText.Text = $"Yeniden üretilebilen klasörleri atla ({string.Join(", ", ExcludePreset.Rebuildable)}). Bunlar kurulum ve derlemeyle geri gelir; yedeği büyütür ve çok yavaşlatır.";
         Excludes.Text = string.Join(";", job.Excludes);
 
         foreach (var f in _available)
@@ -49,6 +50,10 @@ public partial class JobEditorWindow
         for (var i = 0; i < targets.Count; i++)
             Targets.Children.Add(new CheckBox { Content = new TextBlock { Text = $"{targets[i].Name}  ({targets[i].TypeLabel})" }, Tag = targets[i].Name, IsChecked = job.Id == 0 ? i == 0 : job.Targets.Contains(targets[i].Name), Margin = new Thickness(0, 2, 0, 2) });
         NoTargets.Visibility = targets.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var local = job.Targets.FirstOrDefault(Cloud.IsLocalPath);
+        LocalOn.IsChecked = local != null;
+        LocalFolder.Text = local ?? "";
+        CloudOn.IsChecked = job.Id == 0 ? targets.Count > 0 : job.Targets.Any(t => !Cloud.IsLocalPath(t));
         Folder.Text = job.RemoteFolder;
         Keep.Value = job.Keep;
         KeepDays.Value = job.KeepDays;
@@ -131,6 +136,10 @@ public partial class JobEditorWindow
         LevelText.Text = "Sıkıştırma seviyesi: " + (v == 9 ? "9 · En yüksek (Ultra)" : v >= 7 ? $"{v} · Yüksek" : v >= 4 ? $"{v} · Dengeli" : $"{v} · Hızlı");
     }
 
+    private void Excludes_Changed(object sender, TextChangedEventArgs e) => SkipRebuildable.IsChecked = ExcludePreset.IsOn(Excludes.Text);
+
+    private void SkipRebuildable_Click(object sender, RoutedEventArgs e) => Excludes.Text = ExcludePreset.Apply(Excludes.Text, SkipRebuildable.IsChecked == true);
+
     private void Sync()
     {
         if (!_ready) return;
@@ -146,6 +155,8 @@ public partial class JobEditorWindow
         Password.IsEnabled = UsePassword.IsChecked == true;
         SourcesTab.IsEnabled = !db;
         DbPanel.IsEnabled = db;
+        LocalRow.IsEnabled = LocalOn.IsChecked == true;
+        Targets.IsEnabled = CloudOn.IsChecked == true;
 
         var sqlite = Engine == "sqlite";
         var mssql = Engine == "mssql";
@@ -159,6 +170,32 @@ public partial class JobEditorWindow
         DbList.IsEnabled = fileBased || DbAll.IsChecked != true;
         SqlOptions.Visibility = mssql ? Visibility.Visible : Visibility.Collapsed;
         DbCopyOnly.IsEnabled = DbRestoreTest.IsEnabled = DbType.SelectedIndex == 0;
+    }
+
+    private void PickLocal_Click(object sender, RoutedEventArgs e)
+    {
+        var d = new OpenFolderDialog { Title = "Yedeklerin yazılacağı yerel klasör" };
+        if (d.ShowDialog(this) == true) LocalFolder.Text = d.FolderName;
+    }
+
+    /// <summary>Yerel yedek ve buluta gönderim ayrı seçeneklerdir; en az biri seçilmelidir.</summary>
+    private List<string> ReadTargets()
+    {
+        var list = new List<string>();
+        if (LocalOn.IsChecked == true)
+        {
+            var path = LocalFolder.Text.Trim();
+            if (!Cloud.IsLocalPath(path)) throw new ArgumentException(@"Yerel klasörün tam yolunu yazın veya Seç ile belirleyin (örn: E:\Yedekler).");
+            list.Add(Path.TrimEndingDirectorySeparator(path));
+        }
+        if (CloudOn.IsChecked == true)
+        {
+            var chosen = Targets.Children.OfType<CheckBox>().Where(c => c.IsChecked == true).Select(c => (string)c.Tag).ToList();
+            if (chosen.Count == 0) throw new ArgumentException("\"Buluta veya uzak hedefe gönder\" işaretli ama hedef seçilmedi. Bir hedef seçin veya bu seçeneği kapatın.");
+            list.AddRange(chosen);
+        }
+        if (list.Count == 0) throw new ArgumentException("Yerel klasöre yedeklemeyi, buluta göndermeyi veya ikisini birden seçin.");
+        return list;
     }
 
     private void AddSource(string path)
@@ -268,7 +305,7 @@ public partial class JobEditorWindow
             if (UsePassword.IsChecked != true) _job.PasswordEnc = null;
             else if (Password.Password.Length > 0) _job.PasswordEnc = Secrets.Protect(Password.Password);
             else if (_job.PasswordEnc == null) throw new ArgumentException("Parolayı yazın veya parola seçeneğini kapatın.");
-            _job.Targets = Targets.Children.OfType<CheckBox>().Where(c => c.IsChecked == true).Select(c => (string)c.Tag).ToList();
+            _job.Targets = ReadTargets();
             _job.RemoteFolder = Folder.Text.Trim();
             _job.Keep = (int)(Keep.Value ?? 0);
             _job.KeepDays = (int)(KeepDays.Value ?? 0);

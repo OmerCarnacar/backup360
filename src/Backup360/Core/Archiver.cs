@@ -67,14 +67,18 @@ public static class Archiver
         var list = WriteList(req, new UTF8Encoding(false));
         try
         {
-            var warned = f.Engine switch
+            var warned = await RetryOnLowMemoryAsync(RungCount(f), rung => f.Engine switch
             {
-                Engine.SevenZip => await SevenZipAsync(f, req, list, output, log, ct, percent),
-                Engine.TarThen7z => await TarPipeAsync(req, list, s => CompressWith7zAsync(f, req, output, s, ct), ct, percent),
-                Engine.TarZstd => await TarPipeAsync(req, list, s => CompressZstdAsync(req, output, s, ct), ct, percent),
-                Engine.Rar => await RarAsync(req, list, output, log, ct),
+                Engine.SevenZip => SevenZipAsync(f, req, list, output, rung, log, ct, percent),
+                Engine.TarThen7z => TarPipeAsync(req, list, s => CompressWith7zAsync(f, req, output, s, rung, ct), ct, percent),
+                Engine.TarZstd => TarPipeAsync(req, list, s => CompressZstdAsync(req, output, s, ct), ct, percent),
+                Engine.Rar => RarAsync(req, list, output, log, ct),
                 _ => throw new NotSupportedException(),
-            };
+            }, next =>
+            {
+                TryDelete(output);
+                log?.Invoke("  bellek yetmedi, daha az bellekle yeniden deneniyor: " + string.Join(" ", MemoryArgs(f, next)));
+            });
             return new ArchiveResult(output, warned);
         }
         catch
@@ -85,6 +89,29 @@ public static class Archiver
         finally
         {
             TryDelete(list);
+        }
+    }
+
+    public static int RungCount(FormatDef f) => f.Level && f.Engine is Engine.SevenZip or Engine.TarThen7z ? 4 : 1;
+
+    /// <summary>Sıkıştırma seviyesi korunur; önce iş parçacığı azalır, son çare olarak sözlük küçülür.</summary>
+    public static IReadOnlyList<string> MemoryArgs(FormatDef f, int rung) => rung switch
+    {
+        0 => Array.Empty<string>(),
+        1 => new[] { "-mmt=4" },
+        2 => new[] { "-mmt=2" },
+        _ => f.SevenZipType is "7z" or "xz" ? new[] { "-mmt=1", "-md=16m" } : new[] { "-mmt=1" },
+    };
+
+    public static bool IsMemoryError(string message) =>
+        message.Contains("Can't allocate", StringComparison.OrdinalIgnoreCase) || message.Contains("(kod 8)", StringComparison.Ordinal);
+
+    public static async Task<T> RetryOnLowMemoryAsync<T>(int rungs, Func<int, Task<T>> attempt, Action<int> retrying)
+    {
+        for (var rung = 0; ; rung++)
+        {
+            try { return await attempt(rung); }
+            catch (IOException e) when (rung + 1 < rungs && IsMemoryError(e.Message)) { retrying(rung + 1); }
         }
     }
 
@@ -105,11 +132,12 @@ public static class Archiver
     private static string LastLines(string text) =>
         string.Join(" | ", text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).TakeLast(4));
 
-    private static async Task<bool> SevenZipAsync(FormatDef f, ArchiveRequest req, string list, string output, Action<string>? log, CancellationToken ct, Action<int>? percent)
+    private static async Task<bool> SevenZipAsync(FormatDef f, ArchiveRequest req, string list, string output, int rung, Action<string>? log, CancellationToken ct, Action<int>? percent)
     {
         var args = new List<string> { "a", "-t" + f.SevenZipType, "-bsp1" };
         args.AddRange(Common);
         if (f.Level) args.Add("-mx=" + req.Level);
+        args.AddRange(MemoryArgs(f, rung));
         if (req.Password != null)
         {
             args.Add("-p" + req.Password);
@@ -124,9 +152,31 @@ public static class Archiver
         return Check(code, "7-Zip", text);
     }
 
+    /// <summary>
+    /// 7-Zip'in okuyamadığı (kilitli, erişim izni olmayan, silinmiş) dosyalar. Çıktının sonundaki
+    /// "WARNINGS for files" bölümlerinde "yol : neden" biçiminde sıralanır.
+    /// </summary>
+    public static List<string> UnreadFiles(string output)
+    {
+        var files = new List<string>();
+        var inside = false;
+        foreach (var line in output.Split('\n', StringSplitOptions.TrimEntries))
+        {
+            if (line.Contains("WARNINGS for files", StringComparison.OrdinalIgnoreCase)) { inside = true; continue; }
+            if (!inside || line.Length == 0) continue;
+            if (line.StartsWith("---", StringComparison.Ordinal) || line.StartsWith("Scan WARNINGS:", StringComparison.OrdinalIgnoreCase) || line.StartsWith("WARNINGS:", StringComparison.OrdinalIgnoreCase)) { inside = false; continue; }
+            if (line.Contains(" : ", StringComparison.Ordinal) && !files.Contains(line)) files.Add(line);
+        }
+        return files;
+    }
+
     private static void ReportWarnings(int code, string text, Action<string>? log)
     {
         if (code != 1 || log == null) return;
+        var skipped = UnreadFiles(text);
+        foreach (var file in skipped.Take(50)) log("  uyarı: yedeklenemedi: " + file);
+        if (skipped.Count > 50) log($"  uyarı: {skipped.Count - 50} dosya daha yedeklenemedi; tam liste için kaynağı kontrol edin.");
+        if (skipped.Count > 0) return;
         foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                      .Where(l => l.Contains("WARNING", StringComparison.OrdinalIgnoreCase) || l.Contains("cannot", StringComparison.OrdinalIgnoreCase)).Take(20))
             log("  uyarı: " + line);
@@ -160,11 +210,12 @@ public static class Archiver
         return Check(tar.ExitCode, "7-Zip (tar)", messages.ToString());
     }
 
-    private static async Task CompressWith7zAsync(FormatDef f, ArchiveRequest req, string output, Stream source, CancellationToken ct)
+    private static async Task CompressWith7zAsync(FormatDef f, ArchiveRequest req, string output, Stream source, int rung, CancellationToken ct)
     {
         var args = new List<string> { "a", "-t" + f.SevenZipType, "-bd", "-si" + Path.GetFileNameWithoutExtension(output) };
         args.AddRange(Common);
         args.Add("-mx=" + req.Level);
+        args.AddRange(MemoryArgs(f, rung));
         args.Add(output);
 
         using var p = Proc.Start(SevenZ, args, pipeIn: true);

@@ -21,9 +21,10 @@ public sealed class Sandbox : IDisposable
         Environment.SetEnvironmentVariable("BACKUP360_DATA", Path.Combine(Root, "data"));
         Directory.CreateDirectory(Cloud1);
         Directory.CreateDirectory(Cloud2);
-        // Gerçek Drive yerine aynı rclone komutlarını kullanan klasör hedefleri
-        File.WriteAllText(AppPaths.RcloneConfig, $"[gdrive]\ntype = alias\nremote = {Cloud1}\n\n[nas]\ntype = alias\nremote = {Cloud2}\n");
         Db.Init();
+        // Gerçek bulut yerine aynı aktarım kodunu kullanan klasör hedefleri
+        TargetStore.Save(new TargetDefinition { Name = "gdrive", Type = "alias", Auth = "none", Path = Cloud1 });
+        TargetStore.Save(new TargetDefinition { Name = "nas", Type = "alias", Auth = "none", Path = Cloud2 });
     }
 
     public string Tree(string name)

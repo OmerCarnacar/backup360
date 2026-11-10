@@ -1,3 +1,38 @@
+## 2026.11.10.1516
+
+### Değişti: hedeflere doğrudan bağlantı
+- **rclone kaldırıldı.** Google Drive, OneDrive, Dropbox, S3, SFTP, FTP, WebDAV, SMB ve klasör hedeflerine artık doğrudan kendi API'leri ve protokolleriyle bağlanılır; pakette aracı program yoktur
+- **Tek tıkla giriş:** Kaydet'e basınca hesap onay sayfası kendiliğinden açılır. "Token al" düğmesi token'ı alıp alana yazar
+- **Sayfa düğmeleri:** Client ID, uygulama kaydı ve erişim anahtarı için gereken sayfalar hedef ekranından açılır
+- Google Drive, OneDrive ve Dropbox için kendi uygulama kimliğiniz gerekir (adımlar README'de)
+- Hedef bilgileri veritabanında şifreli saklanır
+- S3 hedefinde bucket, SMB hedefinde paylaşım adı ayrı alandır
+
+### Yükseltme notu
+- Önceki sürümde tanımlı bulut hedefleri (Google Drive dahil) **aynı adla yeniden tanımlanmalıdır**; işler değişmeden çalışır. Klasör hedefleri kendiliğinden aktarılır
+- **Disk olarak bağlama (Z:) kaldırıldı**; bu özellik rclone'a bağlıydı
+
+### Eklendi
+- **Sorunlar sayfası:** Hatalar, uyarılar, yedeklenemeyen dosyalar ve buluta aktarılamayan öğeler gün gün listelenir; öğe sonradan başarıyla tamamlanınca kaydı kendiliğinden kapanır. Açık sorun varsa Pano uyarır
+- Okunamayan (kilitli, izinsiz) dosyalar artık adıyla bildirilir
+- **Yerel yedek ve buluta gönderim ayrı seçenekler:** İş yalnızca yerel klasöre, yalnızca buluta veya ikisine birden yedekleyebilir
+- **Yeniden üretilebilen klasörleri atla:** İş ekranında tek tıkla `node_modules`, `.next`, `obj`, `.vs` gibi klasörler yedekten çıkarılır
+- **Hazır Google bağlantısı:** Sürüme gömülü kimlik varsa kullanıcı Client ID girmeden "Kaydet ve giriş yap" ile bağlanır; indirilen kimlik dosyası kendiliğinden algılanır
+- **Geçici klasör seçimi:** Sıkıştırma seçilen klasörde yapılır (Ayarlar)
+- **Yerel yedek saklama:** Sıkıştırılmış yedekler geçici klasörde kalır, ayarlanan günden eskileri silinir; her öğenin en yeni kopyası korunur
+- **Alt klasör yedekleri çalıştırma klasöründe:** Tüm arşivler `09-11-2026_17_10` biçimindeki tek klasöre yazılır
+- Ana pencere tam ekran açılır
+
+### Değişti
+- Sıkıştırma ve gönderim birbirini beklemez; aynı anda iki arşiv gönderilir
+
+### Düzeltildi
+- **Yarıda kalan gönderim kaldığı bayttan sürer:** Google Drive'a büyük dosya gönderilirken bağlantı kopar ya da uygulama kapanırsa sonraki çalıştırma baştan başlamaz; yaklaşık 15 dakikaya kadar kesintide iş kendiliğinden bekleyip devam eder
+- Pano daha kompakt: canlı işler yan yana, aşama şeridi ve yukarı kayan akış alanı animasyonlu
+- Canlı kartlar tek düzende: altı sabit gösterge, saat:dakika:saniye süre biçimi, siyah üzerine yeşil akış alanı
+- Yarıda kesilen yedek "çalışıyor" görünmeye devam etmez; yarım kalan arşiv yerel yedek klasörüne girmez ve kalıntıları temizlenir
+- Bellek yetmediğinde 7-Zip hatası: Yedek iptal olmaz, daha az bellekle yeniden denenir
+
 ## 2026.11.09.1658
 
 ### Eklendi

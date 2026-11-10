@@ -156,7 +156,7 @@ public abstract class JobsPageBase : BoardPage
                 : j.Sources.FirstOrDefault() + (j.Sources.Count > 1 ? $"  +{j.Sources.Count - 1}" : "");
             var chips = new List<string> { kind };
             chips.AddRange(uncompressed ? new[] { "Sıkıştırmasız" } : j.Formats.Take(3));
-            chips.AddRange(j.Targets.Take(2));
+            chips.AddRange(j.Targets.Take(2).Select(t => Cloud.IsLocalPath(t) ? "Yerel klasör" : t));
             var actions = new[]
             {
                 new CardAction("Şimdi çalıştır", WUI.SymbolRegular.Play24, new RelayCommand(() => StartRun("job", j.Id, j.Name))),
@@ -266,7 +266,7 @@ public sealed class TargetsPage : BoardPage
 
     public TargetsPage()
     {
-        Board.Setup("Hedefler", "Tarayıcı, token veya şifre ile hedef tanımlayın. Ölçülen hız aktarım süresi hesabında kullanılır.", "Henüz hedef yok. Yeni hedef tanımla ile başlayın.");
+        Board.Setup("Hedefler", "Her hedefe doğrudan kendi API'si ile bağlanılır. Tarayıcı, token veya şifre ile tanımlayın.", "Henüz hedef yok. Yeni hedef tanımla ile başlayın.");
         Board.AddTop("Tümünü test et", WUI.SymbolRegular.PlugConnected24, () => Ui.Guard(TestAllAsync));
         Board.AddTop("Yeni hedef tanımla", WUI.SymbolRegular.Add24, () => Ui.Guard(DefineAsync), primary: true);
     }
@@ -298,7 +298,14 @@ public sealed class TargetsPage : BoardPage
             return (Group: t.TypeLabel, Card: new CardVm(Icon(t.Type), Fmt.Indigo, t.Name, r is { Ok: false } ? r.Message : t.TypeLabel, new[] { t.Type }, status, color, footer, actions) { Logo = Brand.For(t.Type), Live = TestVm(t.Name) });
         }).ToList();
         Board.SetGroups(cards.GroupBy(c => c.Group, c => c.Card));
+        if (!_legacyShown && TargetStore.PendingLegacy() is { Count: > 0 } pending)
+        {
+            _legacyShown = true;
+            Board.Notify($"Bu sürüm hedeflere doğrudan bağlanır. Şu hedefleri aynı adla yeniden tanımlayın, işleriniz değişmeden çalışır: {string.Join(", ", pending)}", WUI.InfoBarSeverity.Warning);
+        }
     }
+
+    private bool _legacyShown;
 
     private async Task DefineAsync()
     {

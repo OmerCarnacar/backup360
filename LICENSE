@@ -24,7 +24,7 @@ Kısaca: "kaynağı görülebilir, serbestçe kullanılabilir, satılamaz."
 Kullanım süresiz ve sınırsızdır; lisans anahtarı gerekmez, dosya veya boyut
 sınırı yoktur, kullanıcı sayısı sınırı yoktur, hiçbir ücret alınmaz.
 
-Yazılımla birlikte dağıtılan üçüncü taraf bileşenler (7-Zip, rclone vb.) bu
+Yazılımla birlikte dağıtılan üçüncü taraf bileşenler (7-Zip vb.) bu
 lisansa değil, kendi lisanslarına tabidir; bkz. THIRD-PARTY.md.
 
 

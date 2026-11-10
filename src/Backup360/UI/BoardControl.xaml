@@ -111,10 +111,38 @@
                             <TextBlock Text="{Binding Live.PercentText}" FontWeight="SemiBold" FontSize="15" HorizontalAlignment="Right" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                         </Grid>
                         <ProgressBar Height="6" Margin="0,6,0,6" Maximum="100" Value="{Binding Live.Percent, Mode=OneWay}" IsIndeterminate="{Binding Live.Indeterminate}" />
-                        <TextBlock Text="{Binding Live.Item}" FontSize="12" Style="{StaticResource Muted}" ToolTip="{Binding Live.Item}" />
-                        <TextBlock Text="{Binding Live.Stats}" FontSize="12" Style="{StaticResource Muted}" />
-                        <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" CornerRadius="6" Padding="8,6" Margin="0,6,0,6">
-                            <TextBlock Text="{Binding Live.Flow}" FontFamily="Cascadia Mono, Consolas" FontSize="11" MinHeight="16" MaxHeight="118" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Live.Item}" FontSize="12" Height="17" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Live.Item}" />
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                            <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="Kalan süre" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{Binding Live.Eta}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="Geçen süre" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{Binding Live.Elapsed}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="Hız" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{Binding Live.Speed}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="0" Grid.Row="1" Margin="0,0,0,8">
+                                <TextBlock Text="Boyut" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{Binding Live.SizeText}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Grid.Row="1" Margin="0,0,0,8">
+                                <TextBlock Text="Dosya" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{Binding Live.Files}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Grid.Row="1" Margin="0,0,0,8">
+                                <TextBlock Text="Adım" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{Binding Live.StepText}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding Live.Sending}" FontSize="12" Margin="0,0,0,6" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" Visibility="{Binding Live.SendingVisibility}" />
+                        <Border Background="#0B0F0C" BorderBrush="#1F3B2A" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,8" Height="124">
+                            <TextBlock Text="{Binding Live.Flow}" FontFamily="Cascadia Mono, Consolas" FontSize="11.5" LineHeight="15" LineStackingStrategy="BlockLineHeight" Foreground="#4ADE80" TextTrimming="CharacterEllipsis" />
                         </Border>
                         <ui:Button Command="{Binding Live.Stop}" Visibility="{Binding Live.StopVisibility}" Content="Durdur" HorizontalAlignment="Right" />
                     </StackPanel>

@@ -33,7 +33,7 @@ public static class SyncPlanner
             var from = Db.GetJob(job.SyncFromJob) ?? throw new InvalidOperationException("Eşitlenecek SQL yedek işi bulunamadı.");
             if (from.Targets.Count == 0) throw new InvalidOperationException($"{from.Name} işinin hedefi yok.");
             var name = Cloud.SafeName(from.Name);
-            var source = $"{from.Targets[0]}:{from.RemoteFolder.Replace('\\', '/').Trim('/')}/{name}";
+            var source = $"{from.Targets[0]}:{Cloud.JobFolder(from)}";
             foreach (var target in job.Targets)
             {
                 var folder = Combine(job.RemoteFolder, name);
@@ -51,23 +51,7 @@ public static class SyncPlanner
         return pairs;
     }
 
-    /// <summary>
-    /// Aktarmadan önce iki taraf arasındaki farkı listeler. Karşılaştırma mümkünse özet değeriyle,
-    /// değilse boyut ve tarihle yapılır.
-    /// </summary>
-    public static async Task<DiffResult> DiffAsync(SyncPair pair, IEnumerable<string> excludes, CancellationToken ct, bool sizeOnly = false)
-    {
-        var (code, output, error) = await Cloud.CheckAsync(pair, excludes, ct, sizeOnly);
-        var items = new List<DiffEntry>();
-        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var text = line.TrimEnd('\r');
-            if (text.Length < 3) continue;
-            var kind = text[0] switch { '+' => New, '-' => Extra, '*' => Changed, '=' => Same, '!' => Error, _ => "" };
-            if (kind.Length > 0) items.Add(new DiffEntry(kind, text[2..]));
-        }
-        if (items.Count == 0 && code != 0 && !error.Contains("directory not found", StringComparison.OrdinalIgnoreCase))
-            throw new IOException("Karşılaştırma yapılamadı: " + error.Trim());
-        return new DiffResult(items);
-    }
+    /// <summary>Aktarmadan önce iki taraf arasındaki farkı listeler; boyut ve değiştirilme zamanı karşılaştırılır.</summary>
+    public static async Task<DiffResult> DiffAsync(SyncPair pair, IEnumerable<string> excludes, CancellationToken ct, bool sizeOnly = false) =>
+        new(await Cloud.CompareAsync(pair, excludes, sizeOnly, ct));
 }

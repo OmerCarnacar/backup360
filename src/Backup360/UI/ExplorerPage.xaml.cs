@@ -10,8 +10,6 @@ namespace Backup360.UI;
 
 public sealed record FileRow(RemoteEntry Entry, WUI.SymbolRegular Icon, Brush Tint, string Name, string SizeText, string When);
 
-public sealed record MountRow(string Text, ICommand Unmount);
-
 public partial class ExplorerPage
 {
     private string _path = "";
@@ -33,27 +31,6 @@ public partial class ExplorerPage
         TargetBox.SelectedItem = targets.FirstOrDefault(t => t.Name == selected) ?? targets.FirstOrDefault();
         Empty.Visibility = targets.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (targets.Count == 0) Empty.Text = "Henüz hedef yok. Hedefler sayfasından tanımlayın.";
-
-        Letters.ItemsSource = DriveMounter.FreeLetters();
-        Letters.SelectedIndex = 0;
-        RefreshMounts();
-    }
-
-    private void RefreshMounts()
-    {
-        var installed = DriveMounter.IsWinFspInstalled();
-        MountButton.IsEnabled = installed;
-        InstallButton.Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
-        MountHint.Text = installed
-            ? "Bağlı disk, uygulama açık olduğu sürece Dosya Gezgini'nde görünür."
-            : "Disk olarak bağlamak için ücretsiz WinFsp sürücüsünü kurun, sonra uygulamayı yeniden açın.";
-        Mounted.ItemsSource = DriveMounter.Active.Select(m => new MountRow($"{m.Key}  →  {m.Value}", new RelayCommand(() =>
-        {
-            DriveMounter.Unmount(m.Key);
-            Letters.ItemsSource = DriveMounter.FreeLetters();
-            Letters.SelectedIndex = 0;
-            RefreshMounts();
-        }))).ToList();
     }
 
     private void Target_Changed(object sender, SelectionChangedEventArgs e)
@@ -168,25 +145,4 @@ public partial class ExplorerPage
     }
 
     private void CancelDownload_Click(object sender, RoutedEventArgs e) => _download?.Cancel();
-
-    private void WinFsp_Click(object sender, RoutedEventArgs e) => Launcher.Open(DriveMounter.WinFspUrl);
-
-    private async void Mount_Click(object sender, RoutedEventArgs e)
-    {
-        if (Target is not { } target || Letters.SelectedItem is not string letter) return;
-        MountButton.IsEnabled = false;
-        MountHint.Text = $"{target}, {letter} sürücüsü olarak bağlanıyor...";
-        try
-        {
-            await DriveMounter.MountAsync(target, letter, CancellationToken.None);
-            Notify($"{target} artık {letter} sürücüsünde.", WUI.InfoBarSeverity.Success);
-        }
-        catch (Exception x) when (x is IOException or InvalidOperationException or OperationCanceledException)
-        {
-            Notify(x.Message, WUI.InfoBarSeverity.Error);
-        }
-        Letters.ItemsSource = DriveMounter.FreeLetters();
-        Letters.SelectedIndex = 0;
-        RefreshMounts();
-    }
 }

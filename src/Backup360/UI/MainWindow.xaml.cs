@@ -46,17 +46,18 @@ public partial class MainWindow
         CurrentUser = user;
         InitializeComponent();
         Ui.FitToScreen(this);
+        if (ExitProcessOnClose) WindowState = System.Windows.WindowState.Maximized;
         Bar.Title = $"Backup360  ·  {user}";
         Nav.Navigated += (_, _) => Dispatcher.BeginInvoke(PaintMenu, System.Windows.Threading.DispatcherPriority.Loaded);
         Closing += (_, e) =>
         {
             if (e.Cancel) return;
-            DriveMounter.UnmountAll();
             // WPF'in kapanış telemetrisi tek dosyalık pakette hata verip süreci görünmez bırakıyor.
             if (ExitProcessOnClose) Environment.Exit(0);
         };
         Loaded += async (_, _) =>
         {
+            Db.CloseOrphanRuns(LiveFiles.ReadAll().Select(s => s.Key).ToHashSet());
             Nav.Navigate(typeof(DashboardPage));
             PaintMenu();
             try

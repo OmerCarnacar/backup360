@@ -21,7 +21,6 @@ public static class AppPaths
         }
     }
     public static string Database => Path.Combine(DataDir, "backup360.db");
-    public static string RcloneConfig => Path.Combine(DataDir, "rclone.conf");
     public static string LogDir => Directory.CreateDirectory(Path.Combine(DataDir, "logs")).FullName;
     public static string ExePath => Environment.ProcessPath ?? Path.Combine(BaseDir, "Backup360.exe");
 }
@@ -48,20 +47,6 @@ public static class Tools
     {
         var p = ProgramFile(@"WinRAR\Rar.exe");
         return File.Exists(p) ? p : null;
-    }
-
-    public static string? Rclone()
-    {
-        var p = Bundled("rclone.exe");
-        if (p != null) return p;
-        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var candidate = Path.Combine(dir.Trim(), "rclone.exe");
-            if (File.Exists(candidate)) return candidate;
-        }
-        var packages = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\WinGet\Packages");
-        if (!Directory.Exists(packages)) return null;
-        return Directory.EnumerateFiles(packages, "rclone.exe", SearchOption.AllDirectories).FirstOrDefault();
     }
 
     public static string Require(string? path, string name) =>
@@ -193,6 +178,9 @@ public static class RunGate
 }
 
 /// <summary>Çalışan işin anlık durumu. Arka plandaki süreç yazar, pano okuyup canlandırır.</summary>
+/// <summary>Sıkıştırma sürerken arka planda yapılan bir gönderim.</summary>
+public sealed record SendLine(string Label, string Stage, int Percent, double Speed, long Eta);
+
 public sealed class LiveState
 {
     public string Kind { get; set; } = "";
@@ -214,6 +202,7 @@ public sealed class LiveState
     public string Started { get; set; } = "";
     public List<string> Log { get; set; } = new();
     public List<string> Transfers { get; set; } = new();
+    public List<SendLine> Sending { get; set; } = new();
     public string Key => $"{Kind}-{RefId}";
 }
 
@@ -253,11 +242,13 @@ public sealed class RunLog : IDisposable
     private readonly object _gate = new();
     private readonly LiveState? _live;
     private readonly string? _liveFile;
+    private readonly (string Kind, long RefId, string Name) _owner;
     private long _lastFlush;
 
     public RunLog(string title, Action<string>? ui, string kind = "", long refId = 0, string name = "", string mode = "archive")
     {
         _ui = ui;
+        _owner = kind.Length > 0 ? (kind, refId, name) : ("sistem", 0, title);
         _file = Path.Combine(AppPaths.LogDir, $"backup360-{DateTime.Now:yyyyMM}.log");
         if (kind.Length > 0)
         {
@@ -280,6 +271,7 @@ public sealed class RunLog : IDisposable
                 Flush(force: false);   // Çok dosyalı aktarımda diski yormasın
             }
         }
+        Problems.Capture(_owner.Kind, _owner.RefId, _owner.Name, message);
         _ui?.Invoke(line);
     }
 

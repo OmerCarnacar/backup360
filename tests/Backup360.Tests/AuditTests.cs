@@ -70,7 +70,8 @@ public class AuditTests
     {
         using var s = new Sandbox();
         await Backup(s);
-        File.WriteAllText(AppPaths.RcloneConfig, "");
+        TargetStore.Delete("gdrive");
+        TargetStore.Delete("nas");
         var r = await BackupAudit.RunAsync(false, null, default);
         Assert.Equal("failed", r.Status);
         Assert.NotEqual(BackupAudit.Missing, Db.BackupFiles().Single().Status);

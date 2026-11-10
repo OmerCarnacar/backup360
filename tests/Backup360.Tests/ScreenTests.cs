@@ -110,7 +110,7 @@ public class ScreenTests
         Db.Save(new MoveRule { Name = "Gelen Faturalar", Source = @"D:\Gelen", Target = @"D:\Arsiv" });
         Db.SetSetting("exe_path", AppPaths.ExePath);
 
-        var live = new LiveState { Kind = "job", RefId = job.Id, Name = job.Name, Mode = "dated", Pid = Environment.ProcessId, Stage = "upload", Item = "Satis_20261109-020000.7z", Percent = 64, Speed = 18_300_000, Eta = 94, Done = 3_100_000_000, Total = 4_800_000_000, Files = 1, FilesTotal = 1, Step = 3, Steps = 6, Started = "02:00:04", Log = new() { "02:06:11  [Satis.7z] gönderiliyor" } };
+        var live = new LiveState { Kind = "job", RefId = job.Id, Name = job.Name, Mode = "dated", Pid = Environment.ProcessId, Stage = "upload", Item = "Satis_20261109-020000.7z", Percent = 64, Speed = 18_300_000, Eta = 94, Done = 3_100_000_000, Total = 4_800_000_000, Files = 1, FilesTotal = 1, Step = 3, Steps = 6, Started = DateTime.Now.AddMinutes(-6).ToString("HH:mm:ss"), Transfers = new() { "  %64  Satis_20261109-020000.7z" }, Log = new() { "02:00:04  === Yedekleme: Muhasebe Yedek ===", "02:00:09  [Satis.7z] sıkıştırılıyor...", "02:05:58  [Satis.7z] doğrulanıyor (4,5 GB)...", "02:06:11  [Satis.7z] gönderiliyor: gdrive:Backup360" } };
         var liveFile = Path.Combine(LiveFiles.Dir, live.Key + ".json");
         File.WriteAllText(liveFile, JsonSerializer.Serialize(live));
 
@@ -120,8 +120,13 @@ public class ScreenTests
             Shot(w, file, () => ((WUI.NavigationView)w.FindName("Nav")).Navigate(page), 2600);
         }
 
+        // Panoda iki iş yan yana görünsün
+        var second = new LiveState { Kind = "job", RefId = 99, Name = "Proje Zip", Mode = "dated", Pid = Environment.ProcessId, Stage = "archive", Item = "OSGB_AI.zip", Percent = 32, Step = 39, Steps = 54, Started = DateTime.Now.AddMinutes(-41).ToString("HH:mm:ss"), Log = new() { "14:27:18  [My_360.zip] doğrulanıyor (0,8 MB)...", "14:27:18    Yeni: My_360_20261110-112715.zip", "14:27:18  [My_360.zip] tamam.", "14:27:18  [OSGB_AI.zip] sıkıştırılıyor..." } };
+        var secondFile = Path.Combine(LiveFiles.Dir, second.Key + ".json");
+        File.WriteAllText(secondFile, JsonSerializer.Serialize(second));
         var dash = new MainWindow("admin");
         Shot(dash, "pano.png", () => { }, 3000);
+        File.Delete(secondFile);
 
         Db.Save(new Job { Name = "NAS Arşiv", Group = "Şube", Mode = "sync", SyncKind = "folder", Sources = new() { @"D:\Arsiv" }, Targets = new() { "nas" }, RemoteFolder = "" });
         Db.Save(new Job { Name = "SQL NAS", Mode = "sync", SyncKind = "sql", SyncFromJob = 2, Targets = new() { "nas" }, RemoteFolder = "SQL" });
@@ -129,12 +134,18 @@ public class ScreenTests
         File.Delete(liveFile);
         Shot(new MainWindow("admin"), "pano-genel.png", () => { }, 3000);
         Page(typeof(ExplorerPage), "gezgin.png");
-        File.AppendAllText(AppPaths.RcloneConfig, "\n[Sirket-Drive]\ntype = drive\n\n[OneDrive]\ntype = onedrive\n\n[Dropbox]\ntype = dropbox\n\n[Kova]\ntype = s3\n");
+        foreach (var (name, type) in new[] { ("Sirket-Drive", "drive"), ("OneDrive", "onedrive"), ("Dropbox", "dropbox"), ("Kova", "s3") })
+            TargetStore.Save(new TargetDefinition { Name = name, Type = type });
         Page(typeof(FolderSyncPage), "esitleme.png");
         Page(typeof(SqlBackupPage), "sql-yedek.png");
         Page(typeof(SqlSyncPage), "sql-esitleme.png");
         Page(typeof(LogPage), "gunluk.png");
         Page(typeof(HealthPage), "saglik.png");
+        Problems.Capture("job", job.Id, job.Name, "[Satis.7z] HATA: gdrive: Hedefin depolama alanı dolu.");
+        Problems.Capture("job", job.Id, job.Name, @"  uyarı: yedeklenemedi: D:\Sirket\Muhasebe\2026\acik-defter.xlsx : Dosya başka bir işlem tarafından kullanılıyor.");
+        Problems.Capture("job", 2, "ERP Veritabanı", "HATA: Hedef bağlı değil: nas");
+        Page(typeof(ProblemsPage), "sorunlar.png");
+        Problems.ResolveAll();
         Page(typeof(RestorePage), "geri-yukle.png");
         Page(typeof(RulesPage), "kurallar.png");
         Page(typeof(TargetsPage), "hedefler.png");

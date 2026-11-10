@@ -23,10 +23,12 @@ public class ExplorerTests
         Assert.Equal("Yedekler/kok.txt", inner[1].Path);
 
         var down = Directory.CreateDirectory(Path.Combine(s.Root, "indir")).FullName;
-        await CloudExplorer.DownloadAsync("gdrive", inner[1], down, null, null, default);
+        var seen = new List<TransferStats>();
+        await CloudExplorer.DownloadAsync("gdrive", inner[1], down, null, seen.Add, default);
         await CloudExplorer.DownloadAsync("gdrive", inner[0], down, null, null, default);
         Assert.Equal("kok", File.ReadAllText(Path.Combine(down, "kok.txt")));
         Assert.Equal("ic", File.ReadAllText(Path.Combine(down, "Alt Ğü", "ic.txt")));
+        Assert.Equal((3L, 3L), (seen[^1].Bytes, seen[^1].Total));
     }
 
     [Fact]
@@ -42,33 +44,10 @@ public class ExplorerTests
     }
 
     [Fact]
-    public async Task Listing_missing_target_reports_error()
+    public async Task Listing_missing_target_or_folder_reports_error()
     {
         using var s = new Sandbox();
         await Assert.ThrowsAsync<IOException>(() => CloudExplorer.ListAsync("yok", "", default));
-    }
-
-    [Fact]
-    public void Free_letters_exclude_used_drives()
-    {
-        var free = DriveMounter.FreeLetters();
-        Assert.DoesNotContain("C:", free);
-        Assert.Equal(free.OrderByDescending(x => x), free);
-    }
-
-    [Fact]
-    public async Task Mount_requires_winfsp_or_works()
-    {
-        using var s = new Sandbox();
-        if (!DriveMounter.IsWinFspInstalled())
-        {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => DriveMounter.MountAsync("gdrive", "Y:", default));
-            return;
-        }
-        File.WriteAllText(Path.Combine(s.Cloud1, "m.txt"), "bagli");
-        var letter = DriveMounter.FreeLetters().First();
-        await DriveMounter.MountAsync("gdrive", letter, default);
-        try { Assert.Equal("bagli", File.ReadAllText(letter + @"\m.txt")); }
-        finally { DriveMounter.UnmountAll(); }
+        await Assert.ThrowsAsync<IOException>(() => CloudExplorer.ListAsync("gdrive", "olmayan/klasor", default));
     }
 }
