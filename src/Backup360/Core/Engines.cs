@@ -264,10 +264,14 @@ public static class TaskPlanner
 
     private static async Task PowerShellAsync(string script)
     {
-        var encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes("$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';" + script));
+        // Sondaki "exit 0": gerçek hata betiği durdurur (Stop) ve buraya gelinmez; bastırılmış bir
+        // "bulunamadı" ise çıkış kodunu bozmaz.
+        var encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes("$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';" + script.TrimEnd().TrimEnd(';') + ";exit 0"));
         var (code, text) = await Proc.RunAsync("powershell.exe",
             new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded }, null, CancellationToken.None);
-        if (code != 0) throw new InvalidOperationException("Zamanlama kaydedilemedi: " + text);
+        if (code == 0) return;
+        var detail = string.Join(" ", text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(4));
+        throw new InvalidOperationException("Zamanlama kaydedilemedi: " + (detail.Length > 0 ? detail : $"Windows Görev Zamanlayıcı yanıt vermedi (kod {code})."));
     }
 
     private static string Trigger(Schedule s) => s.Type switch
@@ -295,8 +299,9 @@ public static class TaskPlanner
             """);
     }
 
+    /// <summary>Görevi kaldırır. Görev zaten yoksa (zamanlaması "Elle" olan iş) hata sayılmaz.</summary>
     public static Task RemoveAsync(string taskName) =>
-        PowerShellAsync($"Get-ScheduledTask -TaskName {Quote(taskName)} -ErrorAction SilentlyContinue | Unregister-ScheduledTask -Confirm:$false");
+        PowerShellAsync($"$found = Get-ScheduledTask -TaskName {Quote(taskName)} -ErrorAction SilentlyContinue; if ($found) {{ $found | Unregister-ScheduledTask -Confirm:$false }}");
 
     public static Task<bool> ExistsAsync(string taskName) => Task.Run(async () =>
     {

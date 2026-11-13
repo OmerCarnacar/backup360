@@ -86,7 +86,7 @@ public partial class DashboardPage
         var (errors, warnings) = Problems.OpenCounts();
         ProblemBar.IsOpen = errors + warnings > 0;
         ProblemBar.Severity = errors > 0 ? Wpf.Ui.Controls.InfoBarSeverity.Error : Wpf.Ui.Controls.InfoBarSeverity.Warning;
-        ProblemBar.Message = $"{errors} açık hata, {warnings} açık uyarı var. Hangi öğelerin yedeklenemediğini veya aktarılamadığını Sorunlar sayfasında görebilirsiniz.";
+        ProblemBar.Message = $"{errors} açık hata, {warnings} açık uyarı var. Neyin yedeklenemediğini ve nasıl çözüleceğini görmek için tıklayın.";
     }
 
     private static TimeSpan Window(Schedule s) => s.Type switch
@@ -212,9 +212,24 @@ public partial class DashboardPage
         }
         HeroBanner.ClearValue(System.Windows.Controls.Border.BackgroundProperty);
         HeroBanner.Background = _heroBrush;
-        if (failures > 0) SetHero($"{failures} çalışma hata verdi", "Ayrıntılar için Geçmiş sayfasına bakın  ·  " + nextText, WUI.SymbolRegular.Warning24);
+        if (failures > 0) SetHero($"{failures} çalışma hata verdi", "Nedenini ve çözümünü görmek için tıklayın  ·  " + nextText, WUI.SymbolRegular.Warning24);
         else if (jobs.Count == 0) SetHero("Hoş geldiniz", "Başlamak için bir hedef tanımlayın ve ilk yedekleme işinizi oluşturun", WUI.SymbolRegular.Rocket24);
         else SetHero("Yedekleriniz sağlıklı", "Son 7 günde hata yok  ·  " + nextText, WUI.SymbolRegular.ShieldCheckmark24);
+    }
+
+    private void Problems_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => Ui.Navigate(this, typeof(ProblemsPage));
+
+    /// <summary>Durum kutusu: açık sorun varsa çözüm sayfasına, yoksa geçmişe götürür.</summary>
+    private void Hero_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        var (errors, warnings) = Problems.OpenCounts();
+        Ui.Navigate(this, errors + warnings > 0 ? typeof(ProblemsPage) : typeof(HistoryPage));
+    }
+
+    private void Status_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        var label = ((sender as FrameworkElement)?.DataContext as StatusRow)?.Label;
+        Ui.Navigate(this, label is "Hatalı" or "Uyarılı" or "Yedek bozuk" or "Fidye şüphesi" ? typeof(ProblemsPage) : typeof(HistoryPage));
     }
 
     private void SetHero(string title, string sub, WUI.SymbolRegular icon)

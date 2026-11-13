@@ -1,3 +1,18 @@
+## 2026.11.13.1547
+
+### Eklendi
+- **Hatadan çözüme tek tık:** Pano'daki uyarı şeridi, durum kutusu ve iş kartlarındaki "Hata" etiketi Sorunlar sayfasını açar. Her sorun için ne yapılacağı yazar; "Çözüme git" ilgili sayfayı açar, "İşi yeniden çalıştır" işi başlatır
+
+### Değişti
+- **Klasör olarak yedekleme hızlandı:** Yerel klasöre ve ağ paylaşımına kopyalama Windows'un kendi kopyalamasıyla ve aynı anda 12 dosyayla yapılır; günlük dosyası her satırda yeniden açılmaz
+
+### Düzeltildi
+- **"Zamanlama kaydedilemedi" hatası:** Zamanlaması "Elle" olan iş her kaydedildiğinde boş iletili hata çıkıyordu; ayar kaydediliyor ama hata gösteriliyordu
+- Uygulama kendi kilit dosyalarını yedekleyemediği için her çalışmada "uyarı" vermez
+- Artık tekrarlamayan eski uyarılar, iş bir sonraki kez tamamlandığında Sorunlar'dan kendiliğinden kapanır
+- Hariç tutulan klasörlerdeki değişiklik projeyi "değişmiş" saydırmaz; boşuna yeniden sıkıştırma yapılmaz
+- İletisi boş gelen hatalar artık türüyle birlikte yazılır ve tam dökümü günlük dosyasına kaydedilir
+
 ## 2026.11.10.1600
 
 ### Değişti

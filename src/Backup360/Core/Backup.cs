@@ -66,8 +66,9 @@ public static class BackupRunner
         }
         catch (Exception e)
         {
-            log.Write("HATA: " + e.Message);
-            outcome = new Outcome("failed", e.Message, 0);
+            log.Write("HATA: " + RunLog.Describe(e));
+            log.Trace(e);
+            outcome = new Outcome("failed", RunLog.Describe(e), 0);
             return outcome;
         }
         finally
@@ -188,15 +189,31 @@ public static class BackupRunner
         return new Outcome(status, errors.Count > 0 ? string.Join(" ; ", errors) : "Birebir gönderim tamamlandı", total);
     }
 
-    private static (int Count, long Size, DateTime Last) Scan(string dir)
+    /// <summary>
+    /// Klasörün parmak izi: dosya sayısı, toplam boyut ve en son değişiklik. İşte hariç tutulanlar
+    /// sayılmaz; böylece node_modules gibi atlanan bir klasördeki değişiklik projeyi "değişmiş" göstermez.
+    /// </summary>
+    private static (int Count, long Size, DateTime Last) Scan(string dir, Func<string, bool> excluded)
     {
-        var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.System };
         int count = 0; long size = 0; var last = DateTime.MinValue;
-        foreach (var f in new DirectoryInfo(dir).EnumerateFiles("*", options))
+        var pending = new Stack<DirectoryInfo>();
+        pending.Push(new DirectoryInfo(dir));
+        while (pending.Count > 0)
         {
-            count++;
-            size += f.Length;
-            if (f.LastWriteTime > last) last = f.LastWriteTime;
+            FileSystemInfo[] entries;
+            try { entries = pending.Pop().GetFileSystemInfos(); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { continue; }
+            foreach (var entry in entries)
+            {
+                if (entry.Attributes.HasFlag(FileAttributes.System) || excluded(entry.Name)) continue;
+                if (entry is DirectoryInfo sub) pending.Push(sub);
+                else if (entry is FileInfo file)
+                {
+                    count++;
+                    size += file.Length;
+                    if (file.LastWriteTime > last) last = file.LastWriteTime;
+                }
+            }
         }
         return (count, size, last);
     }
@@ -205,6 +222,7 @@ public static class BackupRunner
     private static List<Item> BuildDatedItems(Job job, string runFolder, RunLog log)
     {
         var today = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var excluded = Cloud.Excluder(job.Excludes);
         var items = new List<Item>();
         foreach (var source in job.Sources)
         {
@@ -219,7 +237,7 @@ public static class BackupRunner
             var root = new DirectoryInfo(source);
             foreach (var dir in root.EnumerateDirectories().Where(d => !d.Attributes.HasFlag(FileAttributes.System)).OrderBy(d => d.Name))
             {
-                var (count, size, last) = Scan(dir.FullName);
+                var (count, size, last) = Scan(dir.FullName, excluded);
                 if (count == 0) { log.Write($"  boş klasör atlandı: {dir.Name}"); continue; }
                 Add(prefix + Cloud.SafeName(dir.Name), parent + Cloud.SafeName(dir.Name), new List<string> { dir.FullName }, count, size, last);
             }
@@ -445,7 +463,7 @@ public static class BackupRunner
     {
         var status = run.Corrupt ? "corrupt" : run.Errors.Count > 0 ? "failed" : run.Warnings ? "warning" : "success";
         var detail = run.Errors.Count > 0 ? (run.Corrupt ? "YEDEK BOZUK: " : "") + string.Join(" ; ", run.Errors.Take(5))
-            : run.Warnings ? "Bazı öğeler alınamadı, ayrıntı günlükte."
+            : run.Warnings ? "Bazı dosyalar yedeklenemedi; hangileri olduğu Sorunlar sayfasında."
             : summary;
         run.Log.Write($"Bitti: {status}");
         return new Outcome(status, detail, run.Total);

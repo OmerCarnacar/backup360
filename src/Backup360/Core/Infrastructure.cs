@@ -243,6 +243,8 @@ public sealed class RunLog : IDisposable
     private readonly LiveState? _live;
     private readonly string? _liveFile;
     private readonly (string Kind, long RefId, string Name) _owner;
+    private readonly DateTime _started = DateTime.Now;
+    private StreamWriter? _writer;
     private long _lastFlush;
 
     public RunLog(string title, Action<string>? ui, string kind = "", long refId = 0, string name = "", string mode = "archive")
@@ -263,7 +265,13 @@ public sealed class RunLog : IDisposable
         var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {message}";
         lock (_gate)
         {
-            try { File.AppendAllText(_file, line + Environment.NewLine); } catch (IOException) { }
+            try
+            {
+                // Ekleme kipinde açılan dosyaya birden çok süreç aynı anda güvenle yazabilir.
+                _writer ??= new StreamWriter(new FileStream(_file, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete), new UTF8Encoding(false)) { AutoFlush = true };
+                _writer.WriteLine(line);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _writer = null; }
             if (_live != null)
             {
                 _live.Log.Add(line[11..]);
@@ -271,8 +279,26 @@ public sealed class RunLog : IDisposable
                 Flush(force: false);   // Çok dosyalı aktarımda diski yormasın
             }
         }
-        Problems.Capture(_owner.Kind, _owner.RefId, _owner.Name, message);
+        Problems.Capture(_owner.Kind, _owner.RefId, _owner.Name, message, _started);
         _ui?.Invoke(line);
+    }
+
+    /// <summary>İletisi boş hatalar da anlaşılır olsun: ileti yoksa hatanın türü yazılır.</summary>
+    public static string Describe(Exception e) =>
+        string.IsNullOrWhiteSpace(e.Message) ? $"Beklenmeyen hata ({e.GetType().Name}). Ayrıntı günlük dosyasında." : e.Message;
+
+    /// <summary>Hatanın tam dökümünü yalnızca günlük dosyasına yazar; ekrandaki akışı kalabalıklaştırmaz.</summary>
+    public void Trace(Exception e)
+    {
+        lock (_gate)
+        {
+            try
+            {
+                _writer?.Flush();
+                File.AppendAllLines(_file, e.ToString().Split('\n').Select(l => "      | " + l.TrimEnd()));
+            }
+            catch (IOException) { }
+        }
     }
 
     public void Update(Action<LiveState> change)
@@ -301,6 +327,11 @@ public sealed class RunLog : IDisposable
 
     public void Dispose()
     {
+        lock (_gate)
+        {
+            _writer?.Dispose();
+            _writer = null;
+        }
         if (_liveFile == null) return;
         lock (_gate)
         {

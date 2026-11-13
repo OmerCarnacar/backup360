@@ -1,12 +1,14 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Backup360.Core;
+using WUI = Wpf.Ui.Controls;
 
 namespace Backup360.UI;
 
-public sealed record OpenProblemRow(List<long> Ids, string When, string Level, Brush Brush, string Job, string Item, string Count, string Message);
+public sealed record OpenProblemRow(List<long> Ids, string When, string Level, Brush Brush, string Job, string Item, string Count, string Message, string Advice, string Go, string Kind, long RefId);
 
 public sealed record ProblemLogRow(string Day, string Clock, string Level, Brush Brush, string Job, string Item, string Message, string State);
 
@@ -37,10 +39,31 @@ public partial class ProblemsPage
             {
                 var last = g.OrderByDescending(p => p.Id).First();
                 var (text, brush) = Level(g.Key.Level);
-                return (last.Id, Row: new OpenProblemRow(g.Select(p => p.Id).ToList(), When(last.Time), text, brush, g.Key.Name, g.Key.Item.Length > 0 ? g.Key.Item : "(işin tamamı)", g.Count().ToString(), last.Message));
+                var (advice, go) = Problems.Advice(last.Message);
+                return (last.Id, Row: new OpenProblemRow(g.Select(p => p.Id).ToList(), When(last.Time), text, brush, g.Key.Name, g.Key.Item.Length > 0 ? g.Key.Item : "(işin tamamı)", g.Count().ToString(), last.Message, advice, go, g.Key.Kind, g.Key.RefId));
             })
             .OrderBy(x => x.Row.Level == "Hata" ? 0 : 1).ThenByDescending(x => x.Id)
             .Select(x => x.Row).ToList();
+
+    /// <summary>Sorunun çözüleceği sayfa: hedef sorunu Hedefler'e, iş ayarı sorunu o işin sayfasına götürür.</summary>
+    public static Type PageFor(OpenProblemRow row)
+    {
+        switch (row.Go)
+        {
+            case Problems.GoTargets: return typeof(TargetsPage);
+            case Problems.GoHealth: return typeof(HealthPage);
+            case Problems.GoSettings: return typeof(SettingsPage);
+        }
+        if (row.Kind == "rule") return typeof(RulesPage);
+        if (row.Kind == "audit") return typeof(HealthPage);
+        if (row.Kind != "job" || Db.GetJob(row.RefId) is not { } job) return typeof(LogPage);
+        return job.Mode switch
+        {
+            "database" => typeof(SqlBackupPage),
+            "sync" => job.SyncKind == "sql" ? typeof(SqlSyncPage) : typeof(FolderSyncPage),
+            _ => typeof(FolderBackupPage),
+        };
+    }
 
     private void Reload()
     {
@@ -55,7 +78,9 @@ public partial class ProblemsPage
 
         var open = GroupOpen(Problems.List(0, true));
         OpenGrid.ItemsSource = open;
+        if (open.Count > 0) OpenGrid.SelectedIndex = 0;
         OpenEmpty.Visibility = open.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowAdvice();
 
         var rows = Problems.List(Periods[Math.Max(0, Period.SelectedIndex)], OnlyOpen.IsChecked == true).Select(p =>
         {
@@ -67,9 +92,38 @@ public partial class ProblemsPage
         LogEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void ShowAdvice()
+    {
+        var row = OpenGrid.SelectedItem as OpenProblemRow;
+        AdviceBar.IsOpen = row != null;
+        GoButton.IsEnabled = row != null;
+        RetryButton.IsEnabled = row is { Kind: "job" or "rule" };
+        if (row == null) return;
+        AdviceBar.Title = $"{row.Job}  ·  {row.Item}";
+        AdviceBar.Message = row.Advice;
+        AdviceBar.Severity = row.Level == "Hata" ? WUI.InfoBarSeverity.Error : WUI.InfoBarSeverity.Warning;
+    }
+
+    private void Open_Changed(object sender, SelectionChangedEventArgs e) => ShowAdvice();
     private void Refresh_Click(object sender, RoutedEventArgs e) => Reload();
     private void Filter_Click(object sender, RoutedEventArgs e) => Reload();
     private void Period_Changed(object sender, SelectionChangedEventArgs e) => Reload();
+
+    private void Go()
+    {
+        if (OpenGrid.SelectedItem is OpenProblemRow row) Ui.Navigate(this, PageFor(row));
+    }
+
+    private void Go_Click(object sender, RoutedEventArgs e) => Go();
+    private void Open_DoubleClick(object sender, MouseButtonEventArgs e) => Go();
+
+    private void Retry_Click(object sender, RoutedEventArgs e) => Ui.Guard(async () =>
+    {
+        if (OpenGrid.SelectedItem is not OpenProblemRow { Kind: "job" or "rule" } row) return;
+        Launcher.Start(row.Kind, row.RefId);
+        await Ui.Info($"{row.Job} yeniden başlatıldı. Öğe bu kez tamamlanırsa kaydı kendiliğinden kapanır.");
+        Ui.Navigate(this, PageFor(row with { Go = Problems.GoJob }));
+    });
 
     private void ResolveSelected_Click(object sender, RoutedEventArgs e)
     {

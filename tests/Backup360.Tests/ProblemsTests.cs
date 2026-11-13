@@ -7,7 +7,7 @@ namespace Backup360.Tests;
 public class ProblemsTests
 {
     [Theory]
-    [InlineData("[AlbumPro360.7z] HATA: 7-Zip hata verdi (kod 8)", "error", "AlbumPro360.7z", "7-Zip hata verdi (kod 8)")]
+    [InlineData("[Proje.7z] HATA: 7-Zip hata verdi (kod 8)", "error", "Proje.7z", "7-Zip hata verdi (kod 8)")]
     [InlineData("HATA: Hedef bağlı değil: Google", "error", "", "Hedef bağlı değil: Google")]
     [InlineData("HATA (drive): Hesap onayı 5 dakika içinde gelmedi.", "error", "", "Hesap onayı 5 dakika içinde gelmedi.")]
     [InlineData("  HATA: Alt/rapor.pdf: Bağlantı yanıt vermedi (zaman aşımı).", "error", "Alt/rapor.pdf", "Bağlantı yanıt vermedi (zaman aşımı).")]
@@ -59,6 +59,52 @@ public class ProblemsTests
         Assert.Equal(2, rows.Count);
         Assert.Equal(("Hata", "A.7z", "2", "ikinci"), (rows[0].Level, rows[0].Item, rows[0].Count, rows[0].Message));
         Assert.Equal(("Uyarı", "(işin tamamı)"), (rows[1].Level, rows[1].Item));
+    }
+
+    [Theory]
+    [InlineData("Hedef bağlı değil: Google", "targets", "aynı adla tanımlayın")]
+    [InlineData("GOOGLE_OMER: Hesap oturumu geçersiz. Hedefi kaldırıp yeniden tanımlayın.", "targets", "yeniden tanımlayın")]
+    [InlineData("gdrive: Hedefin depolama alanı dolu.", "job", "yer açın")]
+    [InlineData("Yedeklenemedi: Dosya başka bir işlem tarafından kullanıldığından bu işlem dosyaya erişemiyor.", "job", "Hariç tutulacaklar")]
+    [InlineData("7-Zip hata verdi (kod 8): ERROR: Can't allocate required memory!", "job", "seviyesini düşürün")]
+    [InlineData("Bağlantı uzun süre kurulamadı; gönderim sonraki çalıştırmada kaldığı yerden sürer.", "retry", "kaldığı yerden")]
+    [InlineData("kaynak bulunamadı: E:\\Projeler", "job", "Kaynaklar sekmesini")]
+    [InlineData("Parmak izi değişmiş: dosya bozulmuş veya değiştirilmiş", "health", "Yedek Sağlığı")]
+    [InlineData("bilinmeyen bir şey oldu", "retry", "yeniden çalıştırın")]
+    public void Every_problem_gets_a_concrete_next_step(string message, string go, string expected)
+    {
+        var (text, where) = Problems.Advice(message);
+        Assert.Equal(go, where);
+        Assert.Contains(expected, text);
+    }
+
+    [Fact]
+    public void Solution_page_depends_on_the_problem_and_the_job_type()
+    {
+        using var s = new Sandbox();
+        var folder = new Job { Name = "Klasor", Mode = "archive", Sources = new() { s.Root }, Formats = new() { "zip" }, Targets = new() { "gdrive" } };
+        var sql = new Job { Name = "Sql", Mode = "database", DbEngine = "sqlite", DbNames = new() { "x" }, Formats = new() { "zip" }, Targets = new() { "gdrive" } };
+        Db.Save(folder);
+        Db.Save(sql);
+        Problems.Capture("job", folder.Id, folder.Name, "HATA: Hedef bağlı değil: Google");
+        Problems.Capture("job", sql.Id, sql.Name, "[erp.zip] HATA: 7-Zip hata verdi: Can't allocate required memory");
+        Problems.Capture("job", folder.Id, folder.Name, @"  uyarı: yedeklenemedi: D:\a.xlsx : Dosya kullanılıyor.");
+        var rows = ProblemsPage.GroupOpen(Problems.List(0, true));
+        Type PageOf(string item) => ProblemsPage.PageFor(rows.Single(r => r.Item == item));
+        Assert.Equal(typeof(TargetsPage), PageOf("(işin tamamı)"));
+        Assert.Equal(typeof(SqlBackupPage), PageOf("erp.zip"));
+        Assert.Equal(typeof(FolderBackupPage), PageOf(@"D:\a.xlsx"));
+        Assert.All(rows, r => Assert.False(string.IsNullOrWhiteSpace(r.Advice)));
+    }
+
+    [Fact]
+    public void Error_without_a_message_is_still_described()
+    {
+        Assert.Contains("InvalidOperationException", RunLog.Describe(new InvalidOperationException("")));
+        Assert.Equal("disk dolu", RunLog.Describe(new IOException("disk dolu")));
+        var (level, _, message) = Problems.Classify("HATA: " + RunLog.Describe(new InvalidOperationException(""))).Value;
+        Assert.Equal(Problems.Error, level);
+        Assert.NotEqual("", message);
     }
 
     [Fact]

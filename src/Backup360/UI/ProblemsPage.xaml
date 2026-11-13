@@ -40,7 +40,7 @@
         <TextBlock Text="Yedeklenemeyen veya aktarılamayan öğeler" Style="{StaticResource Section}" Margin="0,4,0,6" />
         <ui:Card Padding="4">
             <Grid>
-                <DataGrid x:Name="OpenGrid" Style="{StaticResource GridLines}" SelectionMode="Extended" MinHeight="110" MaxHeight="260">
+                <DataGrid x:Name="OpenGrid" Style="{StaticResource GridLines}" SelectionMode="Extended" MinHeight="110" MaxHeight="260" SelectionChanged="Open_Changed" MouseDoubleClick="Open_DoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Son görülme" Binding="{Binding When}" Width="125" />
                         <DataGridTemplateColumn Header="Tür" Width="85" CellTemplate="{StaticResource LevelCell}" />
@@ -53,10 +53,13 @@
                 <TextBlock x:Name="OpenEmpty" Text="Açık sorun yok. Tüm öğeler yedeklendi ve aktarıldı." Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
             </Grid>
         </ui:Card>
+        <ui:InfoBar x:Name="AdviceBar" IsOpen="False" IsClosable="False" Severity="Warning" Margin="0,8,0,0" />
         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+            <ui:Button x:Name="GoButton" Content="Çözüme git" Icon="{ui:SymbolIcon ArrowRight24}" Appearance="Primary" Margin="0,0,8,0" Click="Go_Click" />
+            <ui:Button x:Name="RetryButton" Content="İşi yeniden çalıştır" Icon="{ui:SymbolIcon ArrowClockwise24}" Margin="0,0,8,0" Click="Retry_Click" />
             <ui:Button Content="Seçilenleri çözüldü işaretle" Icon="{ui:SymbolIcon Checkmark24}" Margin="0,0,8,0" Click="ResolveSelected_Click" />
             <ui:Button Content="Tümünü çözüldü işaretle" Icon="{ui:SymbolIcon CheckmarkCircle24}" Margin="0,0,8,0" Click="ResolveAll_Click" />
-            <ui:Button Content="Yenile" Icon="{ui:SymbolIcon ArrowClockwise24}" Click="Refresh_Click" />
+            <ui:Button Content="Yenile" Icon="{ui:SymbolIcon ArrowSync24}" Click="Refresh_Click" />
         </StackPanel>
 
         <Grid Margin="0,14,0,6">

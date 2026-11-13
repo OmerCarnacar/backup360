@@ -166,7 +166,7 @@ public abstract class JobsPageBase : BoardPage
                     : new CardAction("Süre hesapla", WUI.SymbolRegular.Timer24, new RelayCommand(() => Ui.Guard(() => EstimateAsync(j)))),
                 new CardAction("Sil", WUI.SymbolRegular.Delete24, new RelayCommand(() => Ui.Guard(() => DeleteAsync(j))), true),
             };
-            return (Group: j.Group, Card: new CardVm(icon, accent, j.Name, source ?? "", chips.ToArray(), status, color, j.Schedule.Describe() + LastTime(last), actions) { Live = LiveFor("job", j.Id), Logo = j.Mode == "database" ? Brand.ForDb(j.DbEngine) : null, Days = DayRows("job", j.Id) });
+            return (Group: j.Group, Card: new CardVm(icon, accent, j.Name, source ?? "", chips.ToArray(), status, color, j.Schedule.Describe() + LastTime(last), actions) { Live = LiveFor("job", j.Id), Logo = j.Mode == "database" ? Brand.ForDb(j.DbEngine) : null, Days = DayRows("job", j.Id), StatusCommand = last?.Status is "failed" or "warning" or "corrupt" or "ransomware" ? new RelayCommand(() => Ui.Navigate(this, typeof(ProblemsPage))) : null });
         }).ToList();
 
         Board.SetGroups(cards.GroupBy(c => c.Group, c => c.Card, StringComparer.OrdinalIgnoreCase),

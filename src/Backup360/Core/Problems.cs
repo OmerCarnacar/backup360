@@ -60,14 +60,49 @@ public static class Problems
         return null;
     }
 
+    public const string GoTargets = "targets", GoJob = "job", GoRetry = "retry", GoHealth = "health", GoSettings = "settings";
+
+    /// <summary>Hata iletisinden kullanıcının yapacağı işi ve çözümün bulunduğu yeri çıkarır.</summary>
+    public static (string Text, string Go) Advice(string message)
+    {
+        bool Has(params string[] parts) => parts.Any(p => message.Contains(p, StringComparison.OrdinalIgnoreCase));
+        if (Has("Hedef bağlı değil", "hedef tanımlı değil"))
+            return ("İşin kullandığı hedef tanımlı değil. Hedefler sayfasında aynı adla tanımlayın ya da işin Hedef sekmesinden başka bir hedef seçin.", GoTargets);
+        if (Has("yeniden tanımlayın", "oturumu geçersiz", "kabul edilmedi", "invalid_grant"))
+            return ("Hedefin giriş bilgisi geçersiz. Hedefler sayfasında hedefi kaldırıp aynı adla yeniden tanımlayın.", GoTargets);
+        if (Has("Drive API etkin değil"))
+            return ("Google projenizde Drive API kapalı. Hedefler sayfasındaki tanımlama ekranından \"Drive API'yi etkinleştir\" düğmesiyle açın.", GoTargets);
+        if (Has("depolama alanı dolu"))
+            return ("Hedefte yer kalmadı. Hedefte yer açın ya da işin saklanacak yedek sayısını azaltın, sonra işi yeniden çalıştırın.", GoJob);
+        if (Has("istek sınırı"))
+            return ("Sağlayıcı geçici olarak yavaşlattı. Birkaç dakika bekleyip işi yeniden çalıştırın.", GoRetry);
+        if (Has("fidye"))
+            return ("Kaynak klasörlerde şifrelenme belirtisi görüldü. Dosyaları kontrol edin; yanlış alarmsa Ayarlar'daki korumayı gözden geçirin.", GoSettings);
+        if (Has("bozuk", "parmak izi", "Hedefte bulunamadı"))
+            return ("Yedek dosyası hedefte eksik ya da bozuk. İşi yeniden çalıştırıp yeni bir yedek alın, ardından Yedek Sağlığı denetimini çalıştırın.", GoHealth);
+        if (Has("allocate", "bellek"))
+            return ("Sıkıştırmaya bellek yetmedi. İşin sıkıştırma seviyesini düşürün ya da büyük klasörleri hariç tutun.", GoJob);
+        if (Has("kullanıldığından", "kullanılıyor", "erişemiyor", "Erişim engellendi", "Yedeklenemedi"))
+            return ("Dosya açık, kilitli ya da izniniz yok. Dosyayı kullanan programı kapatıp işi yeniden çalıştırın; dosya hep açıksa işin \"Hariç tutulacaklar\" alanına ekleyin.", GoJob);
+        if (Has("kaynak bulunamadı", "klasör bulunamadı", "Kaynakların hiçbiri", "Kaynak klasörlerin hiçbiri"))
+            return ("Kaynak klasör yerinde değil (taşınmış, silinmiş ya da disk takılı değil). İşin Kaynaklar sekmesini düzeltin.", GoJob);
+        if (Has("zaman aşımı", "bağlantı", "kaldığı yerden", "yanıt vermedi"))
+            return ("Bağlantı kesildi. İnternet bağlantısını kontrol edip işi yeniden çalıştırın; gönderim kaldığı yerden sürer.", GoRetry);
+        return ("İşi yeniden çalıştırın. Sorun sürerse Canlı Günlük'te bu işin ayrıntılı kaydına bakın.", GoRetry);
+    }
+
     private static string Now() => DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
 
     /// <summary>Günlük satırını işler. Yedeği asla durdurmaz: defter yazılamazsa sessizce geçilir.</summary>
-    public static void Capture(string kind, long refId, string name, string message)
+    public static void Capture(string kind, long refId, string name, string message, DateTime? runStarted = null)
     {
         try
         {
             var text = message.Trim();
+            // Çalışma tüm öğeleri dolaşıp bitti: bu turda yeniden görülmeyen eski kayıtlar artık geçerli değildir.
+            if (runStarted is { } since && text.StartsWith("Bitti:", StringComparison.Ordinal))
+                Db.Exec("UPDATE problems SET resolved=$t WHERE resolved IS NULL AND kind=$k AND ref_id=$r AND time<$s",
+                    ("$t", Now()), ("$k", kind), ("$r", refId), ("$s", since.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)));
             if (ItemDone.Match(text) is { Success: true } done)
             {
                 Db.Exec("UPDATE problems SET resolved=$t WHERE resolved IS NULL AND kind=$k AND ref_id=$r AND item=$i", ("$t", Now()), ("$k", kind), ("$r", refId), ("$i", done.Groups["item"].Value));

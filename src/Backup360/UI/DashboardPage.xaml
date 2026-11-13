@@ -20,7 +20,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="2.2*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Border x:Name="HeroBanner" CornerRadius="8" ClipToBounds="True" MinHeight="54">
+            <Border x:Name="HeroBanner" CornerRadius="8" ClipToBounds="True" MinHeight="54" Cursor="Hand" MouseLeftButtonUp="Hero_Click" ToolTip="Ayrıntıları göster">
                 <Border.Background>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4">
                         <GradientStop Color="#0F172A" Offset="0" />
@@ -101,7 +101,7 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Border CornerRadius="13" Padding="10,3,12,3" Margin="0,0,6,4" Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <Border CornerRadius="13" Padding="10,3,12,3" Margin="0,0,6,4" Cursor="Hand" MouseLeftButtonUp="Status_Click" Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Symbol="{Binding Icon}" Foreground="{Binding Brush}" FontSize="15" Margin="0,0,6,0" />
                             <TextBlock Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" />
@@ -112,7 +112,7 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <ui:InfoBar x:Name="ProblemBar" IsOpen="False" IsClosable="False" Severity="Warning" Margin="0,4,0,0" />
+        <ui:InfoBar x:Name="ProblemBar" IsOpen="False" IsClosable="False" Severity="Warning" Margin="0,4,0,0" Cursor="Hand" MouseLeftButtonUp="Problems_Click" />
         <TextBlock x:Name="LiveTitle" Text="Canlı aktarımlar" FontSize="13.5" FontWeight="SemiBold" Visibility="Collapsed" Margin="0,8,0,6" />
         <UniformGrid x:Name="LivePanel" Columns="1" Margin="0,0,-8,0" />
 

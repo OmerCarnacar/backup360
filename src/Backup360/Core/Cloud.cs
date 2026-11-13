@@ -82,8 +82,6 @@ public sealed record TransferStats(long Bytes, long Total, double Speed, long Et
 /// </summary>
 public static class Cloud
 {
-    private const int Workers = 4;
-
     /// <summary>Sağlayıcı hatalarını kullanıcının ne yapacağını söyleyen metne çevirir.</summary>
     public static string Explain(string text)
     {
@@ -369,7 +367,7 @@ public static class Cloud
     }
 
     /// <summary>Desen dosya ya da klasör adına uyuyorsa o öğe aktarılmaz (7-Zip'in -xr! kuralıyla aynı).</summary>
-    private static Func<string, bool> Excluder(IEnumerable<string> patterns)
+    public static Func<string, bool> Excluder(IEnumerable<string> patterns)
     {
         var rules = patterns.Select(p => Remote.Clean(p)).Where(p => p.Length > 0)
             .Select(p => p.EndsWith("/**", StringComparison.Ordinal) ? p[..^3] : p.EndsWith("/*", StringComparison.Ordinal) ? p[..^2] : p)
@@ -449,7 +447,7 @@ public static class Cloud
                 }
             }
         }
-        await Task.WhenAll(Enumerable.Range(0, Math.Clamp(plan.Count, 1, Workers)).Select(_ => Task.Run(WorkAsync, ct)));
+        await Task.WhenAll(Enumerable.Range(0, Math.Clamp(plan.Count, 1, remote.Parallelism)).Select(_ => Task.Run(WorkAsync, ct)));
 
         if (delete && !source.Single)
         {

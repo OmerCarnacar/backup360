@@ -41,6 +41,9 @@ public partial class MainWindow
     /// <summary>Gerçek uygulamada pencere kapanınca süreç kesin olarak biter.</summary>
     public static bool ExitProcessOnClose { get; set; }
 
+    /// <summary>Başka bir sayfaya geçer; hata göstergelerinden Sorunlar sayfasına gitmek için kullanılır.</summary>
+    public void Go(Type page) => Nav.Navigate(page);
+
     public MainWindow(string user)
     {
         CurrentUser = user;

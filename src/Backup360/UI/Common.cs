@@ -258,6 +258,10 @@ public sealed record CardVm(WUI.SymbolRegular Icon, Brush Accent, string Title, 
     public Visibility IconVisibility => Logo == null ? Visibility.Visible : Visibility.Collapsed;
     public IReadOnlyList<DayRowVm> Days { get; init; } = Array.Empty<DayRowVm>();
     public Visibility DaysVisibility => Days.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>Durum etiketine tıklanınca çalışır; hata veya uyarıda Sorunlar sayfasını açar.</summary>
+    public ICommand? StatusCommand { get; init; }
+    public Cursor StatusCursor => StatusCommand != null ? Cursors.Hand : Cursors.Arrow;
+    public string? StatusTip => StatusCommand != null ? "Sorunları ve çözümünü göster" : null;
 }
 
 public sealed record GroupVm(string Name, int Count, ObservableCollection<CardVm> Cards, CardAction? Action, Visibility ActionVisibility);
@@ -301,6 +305,12 @@ public static class Ui
     }
 
     public static Window Owner(DependencyObject d) => Window.GetWindow(d) ?? Application.Current.MainWindow;
+
+    /// <summary>Sayfadan başka bir sayfaya geçer (örneğin hata göstergesinden Sorunlar sayfasına).</summary>
+    public static void Navigate(DependencyObject from, Type page)
+    {
+        if (Owner(from) is MainWindow main) main.Go(page);
+    }
 
     public static WUI.SymbolIcon Symbol(WUI.SymbolRegular s) => new() { Symbol = s };
 }

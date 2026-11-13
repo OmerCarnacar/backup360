@@ -35,7 +35,10 @@
                         <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding Subtitle}" FontSize="12" Style="{StaticResource Muted}" ToolTip="{Binding Subtitle}" />
                     </StackPanel>
-                    <Border Grid.Column="2" VerticalAlignment="Top" CornerRadius="11" Padding="9,3" Margin="8,0,0,0" Background="#1A94A3B8">
+                    <Border Grid.Column="2" VerticalAlignment="Top" CornerRadius="11" Padding="9,3" Margin="8,0,0,0" Background="#1A94A3B8" Cursor="{Binding StatusCursor}" ToolTip="{Binding StatusTip}">
+                        <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick" Command="{Binding StatusCommand}" />
+                        </Border.InputBindings>
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="{Binding StatusBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />

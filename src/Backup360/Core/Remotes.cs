@@ -21,6 +21,9 @@ public abstract class Remote : IAsyncDisposable
     /// <summary>Yüklenen dosyanın değiştirilme zamanı hedefte korunuyorsa true.</summary>
     public virtual bool KeepsModTime => true;
 
+    /// <summary>Aynı anda kaç dosya gönderileceği. Bulut sağlayıcıları hız sınırı koyduğu için düşük tutulur.</summary>
+    public virtual int Parallelism => 4;
+
     /// <summary>Klasörün doğrudan içeriği. Klasör yoksa DirectoryNotFoundException.</summary>
     public abstract Task<List<RemoteItem>> ListAsync(string path, CancellationToken ct);
     /// <summary>Üst klasörleri oluşturur, var olan dosyanın üzerine yazar.</summary>
@@ -280,10 +283,33 @@ public sealed class LocalRemote(string root) : Remote
         var full = Full(path);
         // Dosya zaten yerindeyse (kaynak ve hedef aynı yol) kendi üzerine kopyalanmaz.
         if (string.Equals(Path.GetFullPath(local), Path.GetFullPath(full), StringComparison.OrdinalIgnoreCase)) return;
-        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        var folder = Path.GetDirectoryName(full)!;
+        if (_made.TryAdd(folder, true)) Directory.CreateDirectory(folder);
+        var size = new FileInfo(local).Length;
+        if (size < StreamFrom)
+        {
+            // Küçük dosyada Windows'un kendi kopyalaması en hızlısıdır; değiştirilme zamanını da korur.
+            ct.ThrowIfCancellationRequested();
+            try { File.Copy(local, full, true); }
+            catch (UnauthorizedAccessException) when (File.Exists(full))
+            {
+                // Hedefteki eski kopya salt okunursa üzerine yazılamaz.
+                File.SetAttributes(full, FileAttributes.Normal);
+                File.Copy(local, full, true);
+            }
+            progress?.Invoke(size);
+            return;
+        }
         await using var source = File.OpenRead(local);
         await Web.SaveAsync(source, full, progress, File.GetLastWriteTimeUtc(local), ct);
     }
+
+    /// <summary>Bu boyuttan büyük dosyalar ilerleme gösterebilmek için akışla kopyalanır.</summary>
+    private const long StreamFrom = 64L * 1024 * 1024;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _made = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Disk ve ağ paylaşımı aynı anda çok dosya yazmayı kaldırır.</summary>
+    public override int Parallelism => 12;
 
     public override async Task DownloadAsync(string path, string local, Action<long>? progress, CancellationToken ct)
     {

@@ -148,8 +148,8 @@ public static class Archiver
         args.Add(output);
         args.Add("@" + list);
         var (code, text) = await Proc.RunAsync(SevenZ, args, null, ct, percent);
-        ReportWarnings(code, text, log);
-        return Check(code, "7-Zip", text);
+        var real = ReportWarnings(code, text, log);
+        return Check(code, "7-Zip", text) && real;
     }
 
     /// <summary>
@@ -170,16 +170,32 @@ public static class Archiver
         return files;
     }
 
-    private static void ReportWarnings(int code, string text, Action<string>? log)
+    /// <summary>
+    /// Backup360'ın çalışırken kendi tuttuğu kilit ve canlı durum dosyaları. Yedeklenen klasör uygulamanın
+    /// kendisini de içeriyorsa bunlar her zaman kilitlidir; yedeğin eksik olduğu anlamına gelmez.
+    /// </summary>
+    public static bool IsOwnTransient(string unreadLine)
     {
-        if (code != 1 || log == null) return;
-        var skipped = UnreadFiles(text);
+        var cut = unreadLine.LastIndexOf(" : ", StringComparison.Ordinal);
+        var path = cut > 0 ? unreadLine[..cut] : unreadLine;
+        var data = Path.TrimEndingDirectorySeparator(AppPaths.DataDir);
+        return new[] { "locks", "live" }.Any(d => path.StartsWith(Path.Combine(data, d) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Okunamayan dosyaları günlüğe yazar. Gerçek bir eksik varsa true döner.</summary>
+    private static bool ReportWarnings(int code, string text, Action<string>? log)
+    {
+        if (code != 1) return false;
+        var all = UnreadFiles(text);
+        var skipped = all.Where(f => !IsOwnTransient(f)).ToList();
+        if (all.Count > 0 && skipped.Count == 0) return false;
+        if (log == null) return true;
         foreach (var file in skipped.Take(50)) log("  uyarı: yedeklenemedi: " + file);
         if (skipped.Count > 50) log($"  uyarı: {skipped.Count - 50} dosya daha yedeklenemedi; tam liste için kaynağı kontrol edin.");
-        if (skipped.Count > 0) return;
+        if (skipped.Count > 0) return true;
         foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                      .Where(l => l.Contains("WARNING", StringComparison.OrdinalIgnoreCase) || l.Contains("cannot", StringComparison.OrdinalIgnoreCase)).Take(20))
-            log("  uyarı: " + line);
+            log("  uyarı: " + line);        return true;
     }
 
     /// <summary>Tar akışını geçici dosya yazmadan doğrudan sıkıştırıcıya aktarır.</summary>
