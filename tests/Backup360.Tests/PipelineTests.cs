@@ -159,6 +159,27 @@ public class PipelineTests
         finally { Db.SetSetting("work_dir", ""); }
     }
 
+    [Fact]
+    public async Task Own_work_folder_is_never_sent_when_the_backup_store_itself_is_uploaded()
+    {
+        using var s = new Sandbox();
+        var store = Path.Combine(s.Root, "Depo");
+        var run = Directory.CreateDirectory(Path.Combine(store, "Yedekler", "01-01-2026_10_00")).FullName;
+        File.WriteAllText(Path.Combine(run, "A_20260101-100000.zip"), "tamam");
+        var half = Directory.CreateDirectory(Path.Combine(store, "_calisma", "abc")).FullName;
+        File.WriteAllText(Path.Combine(half, "B_20260101-100000.zip"), "yarim");
+        Db.SetSetting("work_dir", store);
+        try
+        {
+            var lines = new List<string>();
+            await Cloud.MirrorAsync(store, "gdrive", "Ayna", false, "20260101-000000", Array.Empty<string>(), lines.Add, null, default);
+            Assert.True(File.Exists(Path.Combine(s.Cloud1, "Ayna", "Depo", "Yedekler", "01-01-2026_10_00", "A_20260101-100000.zip")));
+            Assert.False(Directory.Exists(Path.Combine(s.Cloud1, "Ayna", "Depo", "_calisma")));
+            Assert.DoesNotContain(lines, l => l.Contains("_calisma"));
+        }
+        finally { Db.SetSetting("work_dir", ""); }
+    }
+
     [Theory]
     [InlineData("PROJE_YEDEKLE", "Proje_yedekle", false, "PROJE_YEDEKLE")]
     [InlineData("Yedek/PROJE_YEDEKLE", "Proje_yedekle", false, "Yedek/PROJE_YEDEKLE")]

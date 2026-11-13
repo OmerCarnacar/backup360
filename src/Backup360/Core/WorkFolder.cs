@@ -15,6 +15,16 @@ public static class WorkFolder
     public static string? Chosen => string.IsNullOrWhiteSpace(Db.GetSetting("work_dir")) ? null : Db.GetSetting("work_dir")!.Trim();
     public static int KeepDays => int.TryParse(Db.GetSetting("work_keep_days"), out var d) && d >= 0 ? d : 1;
 
+    /// <summary>Seçilen geçici klasörün altındaki çalışma klasörü; kaynak taramalarında atlanır.</summary>
+    public static string? WorkRoot
+    {
+        get
+        {
+            try { return Chosen is { } chosen ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(chosen, "_calisma"))) : null; }
+            catch (Exception e) when (e is ArgumentException or NotSupportedException or IOException) { return null; }
+        }
+    }
+
     public static string RunFolder() => DateTime.Now.ToString(RunFormat, CultureInfo.InvariantCulture);
 
     public static DateTime? ParseRunFolder(string name) =>

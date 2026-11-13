@@ -299,12 +299,14 @@ public static class Cloud
             var root = new DirectoryInfo(path);
             // Kaynak okunamıyorsa boş liste dönmek, hedefteki her şeyin "fazla" sayılıp kaldırılmasına yol açardı.
             if (!root.Exists) throw new DirectoryNotFoundException("Kaynak klasör bulunamadı: " + path);
-            Walk(root, "", list, ct);
+            Walk(root, "", list, WorkFolder.WorkRoot, ct);
             return list;
         }, ct);
 
-        private static void Walk(DirectoryInfo dir, string prefix, List<SourceFile> list, CancellationToken ct)
+        private static void Walk(DirectoryInfo dir, string prefix, List<SourceFile> list, string? workRoot, CancellationToken ct)
         {
+            // Uygulamanın kendi çalışma klasörü yedek değildir; içindeki yarım dosyalar gönderilmez.
+            if (workRoot != null && string.Equals(Path.TrimEndingDirectorySeparator(dir.FullName), workRoot, StringComparison.OrdinalIgnoreCase)) return;
             ct.ThrowIfCancellationRequested();
             FileSystemInfo[] entries;
             try { entries = dir.GetFileSystemInfos(); }
@@ -313,7 +315,7 @@ public static class Cloud
             {
                 if (entry is FileInfo file) list.Add(new SourceFile(prefix + file.Name, file.Length, file.LastWriteTimeUtc, file.FullName));
                 // Bağlantı noktaları (junction) izlenmez; sonsuz döngüye girebilir.
-                else if (entry is DirectoryInfo sub && !sub.Attributes.HasFlag(FileAttributes.ReparsePoint)) Walk(sub, prefix + sub.Name + "/", list, ct);
+                else if (entry is DirectoryInfo sub && !sub.Attributes.HasFlag(FileAttributes.ReparsePoint)) Walk(sub, prefix + sub.Name + "/", list, workRoot, ct);
             }
         }
 
@@ -438,6 +440,12 @@ public static class Cloud
                     finally { source.Release(local); }
                     meter.Done(file.Rel, file.Size);
                     log?.Invoke($"  {(replaced ? "Güncellendi" : "Yeni")}: {file.Rel}");
+                }
+                catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException && file.Local != null && !File.Exists(file.Local))
+                {
+                    // Listelendikten sonra kaynaktan silinen dosya (örneğin başka bir işin eski yedeği temizlemesi) hata değildir.
+                    meter.Drop(file.Rel);
+                    log?.Invoke($"  atlandı, kaynakta artık yok: {file.Rel}");
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
                 {
