@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.ExceptionServices;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
 namespace Backup360.Core;
@@ -218,12 +219,39 @@ public static class BackupRunner
         return (count, size, last);
     }
 
+    private static readonly Regex StampedName = new(@"^(?<item>.+)_\d{8}-\d{6}\.[A-Za-z0-9.]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    /// <summary>İşin her yerel klasör hedefinde, yedeği o an diskte duran öğelerin adları. Bulut hedefleri sorgulanmaz.</summary>
+    private static List<HashSet<string>> KeptLocally(Job job)
+    {
+        var result = new List<HashSet<string>>();
+        foreach (var target in job.Targets.Where(Cloud.IsLocalPath))
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add(names);
+            try
+            {
+                var root = new DirectoryInfo(Path.Combine(target, Cloud.JobFolder(job).Replace('/', Path.DirectorySeparatorChar)));
+                if (!root.Exists) continue;
+                // Yedekler ya doğrudan ya da tarih klasörünün (çok kaynakta bir alt düzey daha) içindedir.
+                foreach (var entry in root.EnumerateFileSystemInfos("*", new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 3, IgnoreInaccessible = true }))
+                {
+                    if (entry is DirectoryInfo) names.Add(entry.Name);
+                    else if (StampedName.Match(entry.Name) is { Success: true } m) names.Add(m.Groups["item"].Value);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { names.Clear(); }
+        }
+        return result;
+    }
+
     /// <summary>Her alt klasör ayrı öğedir. Klasör köküne doğrudan konmuş dosyalar da atlanmaz, tek öğede toplanır.</summary>
     private static List<Item> BuildDatedItems(Job job, string runFolder, RunLog log)
     {
         var today = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var excluded = Cloud.Excluder(job.Excludes);
         var items = new List<Item>();
+        List<HashSet<string>>? kept = null;
         foreach (var source in job.Sources)
         {
             if (!Directory.Exists(source))
@@ -257,8 +285,14 @@ public static class BackupRunner
             var fingerprint = $"{count}|{size}|{last.Ticks}";
             if (job.OnlyChanged && Db.GetFingerprint(job.Id, name) == fingerprint)
             {
-                log.Write($"  değişmedi, atlandı: {name}");
-                return;
+                // Değişmeyen klasör ancak yedeği hâlâ yerindeyse atlanır; yedek silinmişse yeniden alınır.
+                kept ??= KeptLocally(job);
+                if (kept.All(set => set.Contains(name)))
+                {
+                    log.Write($"  değişmedi, atlandı: {name}");
+                    return;
+                }
+                log.Write($"  değişmedi ama yerel yedeği bulunamadı, yeniden alınıyor: {name}");
             }
             var date = !job.UseDateFolder ? runFolder : job.DateBy == "folder" ? last.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : today;
             items.Add(new Item(name, paths, date, fingerprint, remotePath));

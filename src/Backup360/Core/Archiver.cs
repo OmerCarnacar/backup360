@@ -182,12 +182,37 @@ public static class Archiver
         return new[] { "locks", "live" }.Any(d => path.StartsWith(Path.Combine(data, d) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
     }
 
+    private static string PathOf(string unreadLine)
+    {
+        var cut = unreadLine.LastIndexOf(" : ", StringComparison.Ordinal);
+        return cut > 0 ? unreadLine[..cut] : unreadLine;
+    }
+
+    /// <summary>
+    /// Tarama ile sıkıştırma arasında silinen dosya (derleme çıktısı, geçici dosya). Artık var olmayan dosya
+    /// yedeğin eksiği değildir. Sürücünün kendisi erişilemezse dosya "silinmiş" sayılmaz.
+    /// </summary>
+    public static bool IsGone(string unreadLine)
+    {
+        try
+        {
+            var path = PathOf(unreadLine);
+            if (!Path.IsPathFullyQualified(path)) return false;
+            var parent = Path.GetDirectoryName(path);
+            while (parent != null && !Directory.Exists(parent)) parent = Path.GetDirectoryName(parent);
+            return parent != null && !File.Exists(path) && !Directory.Exists(path);
+        }
+        catch (Exception e) when (e is ArgumentException or IOException or NotSupportedException) { return false; }
+    }
+
     /// <summary>Okunamayan dosyaları günlüğe yazar. Gerçek bir eksik varsa true döner.</summary>
     private static bool ReportWarnings(int code, string text, Action<string>? log)
     {
         if (code != 1) return false;
         var all = UnreadFiles(text);
-        var skipped = all.Where(f => !IsOwnTransient(f)).ToList();
+        var gone = all.Where(IsGone).ToList();
+        var skipped = all.Where(f => !IsOwnTransient(f) && !gone.Contains(f)).ToList();
+        if (gone.Count > 0) log?.Invoke($"  not: {gone.Count} dosya sıkıştırma sırasında kaynaktan silindi, atlandı (ör. {PathOf(gone[0])})");
         if (all.Count > 0 && skipped.Count == 0) return false;
         if (log == null) return true;
         foreach (var file in skipped.Take(50)) log("  uyarı: yedeklenemedi: " + file);

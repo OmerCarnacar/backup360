@@ -119,6 +119,24 @@ internal static class Program
     /// <summary>Uyarı ayrı süreçte açılır: kullanıcı onaylayana kadar sonraki zamanlanmış yedekler engellenmez.</summary>
     private static int RunGuard()
     {
+        // Bilgisayar kapalıyken saati geçen yedekler beklemeden alınır; çalışan iş kendi kilidiyle korunur.
+        try
+        {
+            foreach (var job in TaskPlanner.Overdue(DateTime.Now))
+            {
+                using (var log = new RunLog("Zamanlama", null)) log.Write($"Kaçırılan zamanlanmış yedek başlatılıyor: {job.Name}");
+                var psi = new ProcessStartInfo(AppPaths.ExePath) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = AppPaths.BaseDir };
+                psi.ArgumentList.Add("--run-job");
+                psi.ArgumentList.Add(job.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                Process.Start(psi)?.Dispose();
+            }
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            using var log = new RunLog("Zamanlama", null);
+            log.Write("HATA: Kaçırılan yedek başlatılamadı: " + RunLog.Describe(e));
+        }
+
         if (!RansomGuard.Enabled) return 0;
         var result = RansomGuard.MonitorAsync(CancellationToken.None).GetAwaiter().GetResult();
         if (result.Alarm) Alert("Fidye yazılımı koruması", RansomGuard.Describe(result), "ransom");

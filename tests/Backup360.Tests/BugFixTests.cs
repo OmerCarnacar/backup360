@@ -7,6 +7,69 @@ namespace Backup360.Tests;
 public class BugFixTests
 {
     [Fact]
+    public void File_deleted_while_compressing_is_not_a_missing_backup()
+    {
+        using var s = new Sandbox();
+        var kept = Path.Combine(s.Root, "duruyor.js");
+        File.WriteAllText(kept, "x");
+        Assert.False(Archiver.IsGone(kept + " : Dosya kullanılıyor."));
+        Assert.True(Archiver.IsGone(Path.Combine(s.Root, "assets", "Dashboard-8MglQFfA.js") + " : Sistem belirtilen dosyayı bulamıyor."));
+        // Sürücü hiç yoksa dosya "silinmiş" değil, erişilemezdir.
+        var missingDrive = Enumerable.Range('D', 23).Select(c => (char)c + @":\").First(d => !Directory.Exists(d));
+        Assert.False(Archiver.IsGone(missingDrive + @"Veri\a.txt : Sistem belirtilen yolu bulamıyor."));
+        Assert.Null(Problems.Classify("  not: 288 dosya sıkıştırma sırasında kaynaktan silindi, atlandı (ör. D:\\a\\b.js)"));
+    }
+
+    [Fact]
+    public void Two_jobs_writing_the_log_at_once_do_not_overwrite_each_other()
+    {
+        using var s = new Sandbox();
+        using (var a = new RunLog("A", null))
+        using (var b = new RunLog("B", null))
+        {
+            Parallel.Invoke(
+                () => { for (var i = 0; i < 400; i++) a.Write($"a-satiri-{i:000}-sonu"); },
+                () => { for (var i = 0; i < 400; i++) b.Write($"b-satiri-{i:000}-sonu"); });
+        }
+        var lines = File.ReadAllLines(Directory.GetFiles(AppPaths.LogDir, "backup360-*.log").Single());
+        Assert.Equal(802, lines.Length);
+        Assert.Equal(400, lines.Count(l => System.Text.RegularExpressions.Regex.IsMatch(l, @"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d  a-satiri-\d{3}-sonu$")));
+        Assert.Equal(400, lines.Count(l => System.Text.RegularExpressions.Regex.IsMatch(l, @"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d  b-satiri-\d{3}-sonu$")));
+    }
+
+    [Fact]
+    public void Missed_scheduled_backup_is_caught_up_but_never_for_a_time_before_the_schedule_was_set()
+    {
+        Assert.Equal(new DateTime(2026, 11, 15, 16, 0, 0), TaskPlanner.LastDue(new Schedule { Type = "daily", Time = "16:00" }, new DateTime(2026, 11, 16, 8, 5, 0)));
+        Assert.Equal(new DateTime(2026, 11, 16, 16, 0, 0), TaskPlanner.LastDue(new Schedule { Type = "daily", Time = "16:00" }, new DateTime(2026, 11, 16, 16, 0, 0)));
+        Assert.Equal(new DateTime(2026, 11, 13, 9, 30, 0), TaskPlanner.LastDue(new Schedule { Type = "weekly", Days = "Monday,Friday", Time = "09:30" }, new DateTime(2026, 11, 16, 8, 0, 0)));
+        Assert.Null(TaskPlanner.LastDue(new Schedule { Type = "hourly", Interval = 2 }, new DateTime(2026, 11, 16, 8, 0, 0)));
+        Assert.Null(TaskPlanner.LastDue(new Schedule(), new DateTime(2026, 11, 16, 8, 0, 0)));
+
+        using var s = new Sandbox();
+        var job = new Job { Name = "Gunluk", Mode = "archive", Sources = new() { s.Tree("V") }, Formats = new() { "zip" }, Targets = new() { "gdrive" }, Schedule = new Schedule { Type = "daily", Time = "16:00" } };
+        Db.Save(job);
+        var monday = new DateTime(2026, 11, 16, 8, 5, 0);
+        // Hiç çalışmamış iş kaçırılmış sayılmaz.
+        Assert.Empty(TaskPlanner.Overdue(monday));
+
+        var run = Db.StartRun("job", job.Id, job.Name);
+        Db.FinishRun(run, "success", "", 0);
+        Db.Exec("UPDATE runs SET started='2026-11-13 16:00:02'");
+        // Güncellemeden önce kaydedilmiş zamanlama: ilk bakışta iş başlatılmaz, takip o andan başlar.
+        Assert.Empty(TaskPlanner.Overdue(monday));
+        Assert.Empty(TaskPlanner.Overdue(monday.AddMinutes(15)));
+
+        Db.SetSetting($"sched_since:{job.Id}", "2026-11-10T09:00:00.0000000");
+        Assert.Equal(job.Id, Assert.Single(TaskPlanner.Overdue(monday)).Id);
+        // Saati yeni geçmişse Windows'un kendi başlatmasına süre tanınır.
+        Db.Exec("UPDATE runs SET started='2026-11-15 16:00:01'");
+        Assert.Empty(TaskPlanner.Overdue(monday));
+        Assert.Empty(TaskPlanner.Overdue(new DateTime(2026, 11, 16, 16, 10, 0)));
+        Assert.Single(TaskPlanner.Overdue(new DateTime(2026, 11, 16, 16, 30, 0)));
+    }
+
+    [Fact]
     public void Own_lock_and_live_files_are_not_reported_as_missing_from_the_backup()
     {
         using var s = new Sandbox();

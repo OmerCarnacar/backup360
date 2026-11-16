@@ -39,6 +39,36 @@ public class LocalOnlyTests
     }
 
     [Fact]
+    public async Task Unchanged_folder_is_backed_up_again_when_its_local_backup_was_deleted()
+    {
+        using var s = new Sandbox();
+        var local = Path.Combine(s.Root, "Yerel");
+        var root = Path.Combine(s.Root, "Projeler");
+        foreach (var name in new[] { "P1", "P2" })
+        {
+            Directory.CreateDirectory(Path.Combine(root, name));
+            File.WriteAllText(Path.Combine(root, name, "a.txt"), name);
+        }
+        var job = new Job { Name = "Her", Mode = "dated", UseDateFolder = false, DatedOutput = "archive", OnlyChanged = true, Sources = new() { root }, Formats = new() { "zip" }, Targets = new() { local }, RemoteFolder = "Arsiv", Keep = 0 };
+        Db.Save(job);
+        Assert.Equal("success", (await BackupRunner.RunAsync(job.Id, null, default)).Status);
+        Assert.Equal(2, Rel(local).Length);
+
+        // Hiçbir şey değişmedi ve yedekler yerinde: yeni yedek alınmaz.
+        await Task.Delay(1100);
+        Assert.Equal("success", (await BackupRunner.RunAsync(job.Id, null, default)).Status);
+        Assert.Equal(2, Rel(local).Length);
+
+        // P2'nin yedeği dışarıdan silindi: kaynak değişmese de yeniden alınır, P1'e dokunulmaz.
+        File.Delete(Path.Combine(local, Rel(local).Single(f => f.Contains("/P2_")).Replace('/', Path.DirectorySeparatorChar)));
+        await Task.Delay(1100);
+        Assert.Equal("success", (await BackupRunner.RunAsync(job.Id, null, default)).Status);
+        var after = Rel(local);
+        Assert.Single(after, f => f.Contains("/P1_"));
+        Assert.Single(after, f => f.Contains("/P2_"));
+    }
+
+    [Fact]
     public async Task Each_subfolder_and_uncompressed_jobs_work_locally_too()
     {
         using var s = new Sandbox();

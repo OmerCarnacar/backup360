@@ -364,7 +364,58 @@ public static class TaskPlanner
         if (Db.GetSetting("audit_schedule") == null) await SaveAuditAsync(AuditSchedule(), false);
     }
 
-    public static Task ApplyAsync(Job j) => ApplyAsync(JobTask(j.Id), $"--run-job {j.Id}", j.Schedule);
+    public static Task ApplyAsync(Job j)
+    {
+        // Zamanlama bu andan itibaren geçerlidir; öncesine ait bir saat "kaçırılmış" sayılmaz.
+        Db.SetSetting(SinceKey(j.Id), DateTime.Now.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
+        return ApplyAsync(JobTask(j.Id), $"--run-job {j.Id}", j.Schedule);
+    }
+
+    private static string SinceKey(long jobId) => $"sched_since:{jobId}";
+
+    /// <summary>Günlük ya da haftalık zamanlamanın, verilen andan önceki son çalışma saati.</summary>
+    public static DateTime? LastDue(Schedule s, DateTime now)
+    {
+        if (s.Type is not ("daily" or "weekly")) return null;
+        if (!TimeSpan.TryParse(s.Time, System.Globalization.CultureInfo.InvariantCulture, out var time)) return null;
+        var days = s.Days.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(d => Enum.TryParse<DayOfWeek>(d, true, out var day) ? day : (DayOfWeek?)null).Where(d => d != null).ToList();
+        for (var back = 0; back <= 7; back++)
+        {
+            var due = now.Date.AddDays(-back) + time;
+            if (due > now) continue;
+            if (s.Type == "daily" || days.Contains(due.DayOfWeek)) return due;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Bilgisayar kapalı ya da uykudayken saati geçmiş işler. Windows uykudan çıkışta kaçan görevi her zaman
+    /// başlatmaz; bu yüzden koruma görevi her çalıştığında buraya bakar. İş daha önce hiç çalışmadıysa ya da
+    /// zamanlaması o saatten sonra kaydedildiyse kaçırılmış sayılmaz.
+    /// </summary>
+    public static List<Job> Overdue(DateTime now)
+    {
+        var list = new List<Job>();
+        foreach (var job in Db.Jobs())
+        {
+            if (LastDue(job.Schedule, now) is not { } due) continue;
+            // İlk dakikalar Windows'un kendi başlatmasına bırakılır.
+            if (now - due < TimeSpan.FromMinutes(20)) continue;
+            if (Db.LastRun("job", job.Id) is not { } last) continue;
+            if (!DateTime.TryParse(last.Started, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var started)) continue;
+            if (started >= due.AddMinutes(-1)) continue;
+            if (!DateTime.TryParse(Db.GetSetting(SinceKey(job.Id)), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var since))
+            {
+                // Bu özellikten önce kaydedilmiş zamanlama: takip şimdi başlar, geçmiş için iş başlatılmaz.
+                Db.SetSetting(SinceKey(job.Id), now.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
+                continue;
+            }
+            if (since > due) continue;
+            list.Add(job);
+        }
+        return list;
+    }
     public static Task ApplyAsync(MoveRule r) => ApplyAsync(RuleTask(r.Id), $"--run-rule {r.Id}", r.Schedule);
 
     /// <summary>Uygulama klasörü taşındıysa görevleri yeni exe yoluna göre yeniden kaydeder.</summary>

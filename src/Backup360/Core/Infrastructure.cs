@@ -246,6 +246,7 @@ public sealed class RunLog : IDisposable
     private readonly DateTime _started = DateTime.Now;
     private StreamWriter? _writer;
     private long _lastFlush;
+    private static readonly Mutex FileGate = new(false, "Backup360-Gunluk");
 
     public RunLog(string title, Action<string>? ui, string kind = "", long refId = 0, string name = "", string mode = "archive")
     {
@@ -267,9 +268,18 @@ public sealed class RunLog : IDisposable
         {
             try
             {
-                // Ekleme kipinde açılan dosyaya birden çok süreç aynı anda güvenle yazabilir.
                 _writer ??= new StreamWriter(new FileStream(_file, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete), new UTF8Encoding(false)) { AutoFlush = true };
-                _writer.WriteLine(line);
+                // Aynı anda çalışan iki iş aynı dosyaya yazar. Her süreç kendi konumunu tuttuğu için sıra
+                // beklenmeden yazılırsa satırlar birbirinin üzerine biner; yazmadan önce dosyanın sonuna gidilir.
+                var held = false;
+                try { held = FileGate.WaitOne(3000); }
+                catch (AbandonedMutexException) { held = true; }
+                try
+                {
+                    _writer.BaseStream.Seek(0, SeekOrigin.End);
+                    _writer.WriteLine(line);
+                }
+                finally { if (held) FileGate.ReleaseMutex(); }
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _writer = null; }
             if (_live != null)
