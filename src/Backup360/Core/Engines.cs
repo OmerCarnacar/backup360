@@ -290,6 +290,10 @@ public static class TaskPlanner
             await RemoveAsync(taskName);
             return;
         }
+        // Zamanlama bu andan itibaren geçerlidir; öncesine ait bir saat "kaçırılmış" sayılmaz.
+        // Bu not yazılamazsa görev yine kaydedilir.
+        try { Db.SetSetting(SinceKey(taskName), DateTime.Now.ToString("o", System.Globalization.CultureInfo.InvariantCulture)); }
+        catch (Microsoft.Data.Sqlite.SqliteException) { }
         await PowerShellAsync($"""
             $a = New-ScheduledTaskAction -Execute {Quote(AppPaths.ExePath)} -Argument {Quote(arguments)} -WorkingDirectory {Quote(AppPaths.BaseDir.TrimEnd('\\'))};
             $t = {Trigger(s)};
@@ -364,14 +368,9 @@ public static class TaskPlanner
         if (Db.GetSetting("audit_schedule") == null) await SaveAuditAsync(AuditSchedule(), false);
     }
 
-    public static Task ApplyAsync(Job j)
-    {
-        // Zamanlama bu andan itibaren geçerlidir; öncesine ait bir saat "kaçırılmış" sayılmaz.
-        Db.SetSetting(SinceKey(j.Id), DateTime.Now.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
-        return ApplyAsync(JobTask(j.Id), $"--run-job {j.Id}", j.Schedule);
-    }
+    public static Task ApplyAsync(Job j) => ApplyAsync(JobTask(j.Id), $"--run-job {j.Id}", j.Schedule);
 
-    private static string SinceKey(long jobId) => $"sched_since:{jobId}";
+    public static string SinceKey(string taskName) => "sched_since:" + taskName;
 
     /// <summary>Günlük ya da haftalık zamanlamanın, verilen andan önceki son çalışma saati.</summary>
     public static DateTime? LastDue(Schedule s, DateTime now)
@@ -390,32 +389,33 @@ public static class TaskPlanner
     }
 
     /// <summary>
-    /// Bilgisayar kapalı ya da uykudayken saati geçmiş işler. Windows uykudan çıkışta kaçan görevi her zaman
-    /// başlatmaz; bu yüzden koruma görevi her çalıştığında buraya bakar. İş daha önce hiç çalışmadıysa ya da
-    /// zamanlaması o saatten sonra kaydedildiyse kaçırılmış sayılmaz.
+    /// Görevin saati bilgisayar kapalı ya da uykudayken geçti mi? Windows uykudan çıkışta kaçan görevi her
+    /// zaman başlatmaz; bu yüzden koruma görevi her çalıştığında buraya bakar. Zamanlama o saatten sonra
+    /// kaydedildiyse ya da o saatten beri bir çalışma varsa kaçırılmış sayılmaz.
     /// </summary>
-    public static List<Job> Overdue(DateTime now)
+    private static bool Missed(string taskName, Schedule schedule, string kind, long refId, DateTime now)
     {
-        var list = new List<Job>();
-        foreach (var job in Db.Jobs())
+        if (LastDue(schedule, now) is not { } due) return false;
+        // İlk dakikalar Windows'un kendi başlatmasına bırakılır.
+        if (now - due < TimeSpan.FromMinutes(20)) return false;
+        if (!DateTime.TryParse(Db.GetSetting(SinceKey(taskName)), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var since))
         {
-            if (LastDue(job.Schedule, now) is not { } due) continue;
-            // İlk dakikalar Windows'un kendi başlatmasına bırakılır.
-            if (now - due < TimeSpan.FromMinutes(20)) continue;
-            if (Db.LastRun("job", job.Id) is not { } last) continue;
-            if (!DateTime.TryParse(last.Started, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var started)) continue;
-            if (started >= due.AddMinutes(-1)) continue;
-            if (!DateTime.TryParse(Db.GetSetting(SinceKey(job.Id)), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var since))
-            {
-                // Bu özellikten önce kaydedilmiş zamanlama: takip şimdi başlar, geçmiş için iş başlatılmaz.
-                Db.SetSetting(SinceKey(job.Id), now.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
-                continue;
-            }
-            if (since > due) continue;
-            list.Add(job);
+            // Bu özellikten önce kaydedilmiş zamanlama: takip şimdi başlar, geçmiş için iş başlatılmaz.
+            Db.SetSetting(SinceKey(taskName), now.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
+            return false;
         }
-        return list;
+        if (since > due) return false;
+        return Db.LastRun(kind, refId) is not { } last
+               || !DateTime.TryParse(last.Started, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var started)
+               || started < due.AddMinutes(-1);
     }
+
+    /// <summary>Saati kaçmış yedek işleri.</summary>
+    public static List<Job> Overdue(DateTime now) =>
+        Db.Jobs().Where(j => Missed(JobTask(j.Id), j.Schedule, "job", j.Id, now)).ToList();
+
+    /// <summary>Saati kaçmış yedek denetimi (haftalık denetim çoğu zaman gece saatine kuruludur).</summary>
+    public static bool AuditOverdue(DateTime now) => Missed(AuditTask, AuditSchedule(), "audit", 0, now);
     public static Task ApplyAsync(MoveRule r) => ApplyAsync(RuleTask(r.Id), $"--run-rule {r.Id}", r.Schedule);
 
     /// <summary>Uygulama klasörü taşındıysa görevleri yeni exe yoluna göre yeniden kaydeder.</summary>

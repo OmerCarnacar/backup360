@@ -75,6 +75,8 @@ public static class WorkFolder
     public static WorkSpace Create(Job job, Action<string> warn)
     {
         if (Chosen is not { } chosen) return new WorkSpace(SystemWork(), null);
+        // Birebir gönderim ve eşitleme sıkıştırma yapmaz; geçici klasöre ihtiyaçları ve bu yüzden uyarıları yoktur.
+        if (job.Mode is "mirror" or "sync") return new WorkSpace(SystemWork(), null);
         if (job.Sources.Any(s => IsInside(chosen, s)))
         {
             warn($"  uyarı: geçici klasör yedeklenen klasörün içinde olduğu için kullanılmadı: {chosen}");

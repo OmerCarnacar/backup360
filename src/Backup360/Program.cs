@@ -130,6 +130,14 @@ internal static class Program
                 psi.ArgumentList.Add(job.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 Process.Start(psi)?.Dispose();
             }
+            if (TaskPlanner.AuditOverdue(DateTime.Now))
+            {
+                using (var log = new RunLog("Zamanlama", null)) log.Write("Kaçırılan yedek denetimi başlatılıyor");
+                var psi = new ProcessStartInfo(AppPaths.ExePath) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = AppPaths.BaseDir };
+                psi.ArgumentList.Add("--run-audit");
+                psi.ArgumentList.Add(Db.GetSetting("audit_deep") == "1" ? "deep" : "quick");
+                Process.Start(psi)?.Dispose();
+            }
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {

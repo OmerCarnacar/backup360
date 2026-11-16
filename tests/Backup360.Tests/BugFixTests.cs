@@ -50,23 +50,36 @@ public class BugFixTests
         var job = new Job { Name = "Gunluk", Mode = "archive", Sources = new() { s.Tree("V") }, Formats = new() { "zip" }, Targets = new() { "gdrive" }, Schedule = new Schedule { Type = "daily", Time = "16:00" } };
         Db.Save(job);
         var monday = new DateTime(2026, 11, 16, 8, 5, 0);
-        // Hiç çalışmamış iş kaçırılmış sayılmaz.
+        var since = TaskPlanner.SinceKey(TaskPlanner.JobTask(job.Id));
+        // Güncellemeden önce kaydedilmiş zamanlama: ilk bakışta iş başlatılmaz, takip o andan başlar.
+        Assert.Empty(TaskPlanner.Overdue(monday));
+        Assert.Empty(TaskPlanner.Overdue(monday.AddMinutes(15)));
+        // Zamanlama o saatten önce kaydedildiyse hiç çalışmamış iş de telafi edilir.
+        Db.SetSetting(since, "2026-11-10T09:00:00.0000000");
+        Assert.Single(TaskPlanner.Overdue(monday));
+        // Zamanlama o saatten sonra kaydedildiyse edilmez.
+        Db.SetSetting(since, "2026-11-15T17:00:00.0000000");
         Assert.Empty(TaskPlanner.Overdue(monday));
 
         var run = Db.StartRun("job", job.Id, job.Name);
         Db.FinishRun(run, "success", "", 0);
         Db.Exec("UPDATE runs SET started='2026-11-13 16:00:02'");
-        // Güncellemeden önce kaydedilmiş zamanlama: ilk bakışta iş başlatılmaz, takip o andan başlar.
-        Assert.Empty(TaskPlanner.Overdue(monday));
-        Assert.Empty(TaskPlanner.Overdue(monday.AddMinutes(15)));
-
-        Db.SetSetting($"sched_since:{job.Id}", "2026-11-10T09:00:00.0000000");
+        Db.SetSetting(since, "2026-11-10T09:00:00.0000000");
         Assert.Equal(job.Id, Assert.Single(TaskPlanner.Overdue(monday)).Id);
         // Saati yeni geçmişse Windows'un kendi başlatmasına süre tanınır.
         Db.Exec("UPDATE runs SET started='2026-11-15 16:00:01'");
         Assert.Empty(TaskPlanner.Overdue(monday));
         Assert.Empty(TaskPlanner.Overdue(new DateTime(2026, 11, 16, 16, 10, 0)));
         Assert.Single(TaskPlanner.Overdue(new DateTime(2026, 11, 16, 16, 30, 0)));
+
+        // Haftalık denetim Pazar 03:00'te bilgisayar kapalıyken kaçtıysa o da telafi edilir.
+        Db.SetSetting("audit_schedule", System.Text.Json.JsonSerializer.Serialize(new Schedule { Type = "weekly", Days = "Sunday", Time = "03:00" }));
+        Assert.False(TaskPlanner.AuditOverdue(monday));
+        Db.SetSetting(TaskPlanner.SinceKey(TaskPlanner.AuditTask), "2026-11-10T09:00:00.0000000");
+        Assert.True(TaskPlanner.AuditOverdue(monday));
+        Db.FinishRun(Db.StartRun("audit", 0, "Hızlı yedek denetimi"), "success", "", 0);
+        Db.Exec("UPDATE runs SET started='2026-11-15 03:00:04' WHERE kind='audit'");
+        Assert.False(TaskPlanner.AuditOverdue(monday));
     }
 
     [Fact]
