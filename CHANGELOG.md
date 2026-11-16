@@ -1,3 +1,15 @@
+## 2026.11.16.1232
+
+### Eklendi
+- **Kaçan yedek telafi edilir:** Bilgisayar kapalı ya da uykudayken saati geçen günlük ve haftalık işler, bilgisayar açıldıktan sonra koruma görevi tarafından başlatılır. Zamanlama kaydedilmeden önceki saatler için iş başlatılmaz
+
+### Düzeltildi
+- **Yedeği silinmiş klasör yeniden alınır:** "Yalnızca değişenler" açıkken değişmeyen klasör, yerel hedefteki yedeği silinmiş olsa bile atlanıyor ve yedeksiz kalıyordu
+- **Çalışma klasörü gönderilmez:** Yedek deposunun kendisi buluta gönderildiğinde uygulamanın geçici çalışma klasörü de taranıyor, iş "dosya bulunamadı" hatasıyla bitiyordu
+- Listelendikten sonra kaynaktan silinen dosya gönderimi başarısız yapmaz; günlüğe "atlandı" diye yazılır
+- Sıkıştırma sırasında kaynaktan silinen dosyalar (derleme çıktıları gibi) yüzlerce uyarı üretmez; günlüğe tek satır not düşülür
+- Aynı anda çalışan işler günlük dosyasında birbirinin satırlarını ezmez
+
 ## 2026.11.13.1547
 
 ### Eklendi
