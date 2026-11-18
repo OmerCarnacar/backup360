@@ -405,9 +405,18 @@ public static class TaskPlanner
             return false;
         }
         if (since > due) return false;
-        return Db.LastRun(kind, refId) is not { } last
-               || !DateTime.TryParse(last.Started, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var started)
-               || started < due.AddMinutes(-1);
+        static DateTime? When(RunRecord r) =>
+            DateTime.TryParse(r.Started, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : null;
+        var runs = Db.RecentRuns().Where(r => r.Kind == kind && r.RefId == refId && When(r) >= due.AddMinutes(-1)).ToList();
+        if (runs.Count == 0) return true;
+        // O saatte başlamış ama bilgisayar kapanınca yarıda kalmış çalışma sürdürülür. Art arda yarıda
+        // kalıyorsa sonsuza dek denenmez.
+        if (runs.Count >= 3) return false;
+        var last = runs[0];
+        if (last.Status == "failed" && last.Detail == Db.Interrupted) return true;
+        if (last.Status != "running") return false;
+        using var gate = RunGate.TryEnter(kind == "audit" ? "audit" : $"{kind}-{refId}");
+        return gate != null;
     }
 
     /// <summary>Saati kaçmış yedek işleri.</summary>

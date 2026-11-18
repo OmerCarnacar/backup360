@@ -53,6 +53,13 @@ public static class BackupRunner
             };
             return outcome;
         }
+        catch (SessionEndingException)
+        {
+            // Kalan öğeler tek tek "hata" yazılmaz; iş sonraki açılışta kaldığı yerden sürer.
+            log.Write("Oturum kapanıyor; çalışma yarıda kesildi, tamamlanan yedekler korundu.");
+            outcome = new Outcome("failed", Db.Interrupted, 0);
+            return outcome;
+        }
         catch (OperationCanceledException)
         {
             log.Write("İptal edildi.");

@@ -163,6 +163,28 @@ public static class Secrets
 /// Aynı işin ikinci kopyasını engeller. Dosya kilidi kullanılır: await sonrası başka iş parçacığından
 /// bırakılabilir (Mutex bırakılamaz) ve süreç kapanınca Windows kilidi kendiliğinden çözer.
 /// </summary>
+/// <summary>
+/// Yedek sürerken bilgisayarın boşta kalıp uykuya geçmesini engeller; ekran kapanabilir. Kullanıcının
+/// kendisi uyku ya da kapatma seçerse Windows yine uyur. Çağıran iş parçacığı yaşadığı sürece geçerlidir.
+/// </summary>
+public sealed class KeepAwake : IDisposable
+{
+    private const uint Continuous = 0x80000000, SystemRequired = 0x00000001;
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint SetThreadExecutionState(uint flags);
+
+    private KeepAwake() { }
+
+    public static KeepAwake Begin()
+    {
+        SetThreadExecutionState(Continuous | SystemRequired);
+        return new KeepAwake();
+    }
+
+    public void Dispose() => SetThreadExecutionState(Continuous);
+}
+
 public static class RunGate
 {
     public static IDisposable? TryEnter(string key)

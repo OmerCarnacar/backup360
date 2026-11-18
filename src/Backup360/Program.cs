@@ -153,6 +153,7 @@ internal static class Program
 
     private static int RunAudit(bool deep)
     {
+        using var awake = KeepAwake.Begin();
         using var cts = new CancellationTokenSource();
         using var ev = new EventWaitHandle(false, EventResetMode.AutoReset, Launcher.EventName("audit", 0));
         ThreadPool.RegisterWaitForSingleObject(ev, (_, _) => cts.Cancel(), null, -1, true);
@@ -173,6 +174,7 @@ internal static class Program
 
     private static int Headless(string kind, long id)
     {
+        using var awake = KeepAwake.Begin();
         using var cts = new CancellationTokenSource();
         using var ev = new EventWaitHandle(false, EventResetMode.AutoReset, Launcher.EventName(kind, id));
         ThreadPool.RegisterWaitForSingleObject(ev, (_, _) => cts.Cancel(), null, -1, true);

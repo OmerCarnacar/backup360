@@ -21,6 +21,63 @@ public class BugFixTests
     }
 
     [Fact]
+    public void Windows_ending_the_session_is_recognised_and_negative_exit_codes_are_errors()
+    {
+        Assert.True(Archiver.IsSessionEnding(1073807364));               // 0x40010004: oturum kapanırken sonlandırıldı
+        Assert.True(Archiver.IsSessionEnding(unchecked((int)0xC0000142))); // kapanış sırasında yeni süreç başlatılamadı
+        Assert.False(Archiver.IsSessionEnding(0));
+        Assert.False(Archiver.IsSessionEnding(1));
+        Assert.False(Archiver.IsSessionEnding(2));
+        Assert.False(Archiver.IsSessionEnding(8));
+        Assert.IsAssignableFrom<OperationCanceledException>(new SessionEndingException());
+    }
+
+    [Fact]
+    public void Scheduled_run_cut_short_by_shutdown_is_resumed_but_not_forever()
+    {
+        using var s = new Sandbox();
+        var job = new Job { Name = "Gunluk", Mode = "archive", Sources = new() { s.Tree("V") }, Formats = new() { "zip" }, Targets = new() { "gdrive" }, Schedule = new Schedule { Type = "daily", Time = "16:00" } };
+        Db.Save(job);
+        Db.SetSetting(TaskPlanner.SinceKey(TaskPlanner.JobTask(job.Id)), "2026-11-10T09:00:00.0000000");
+        var morning = new DateTime(2026, 11, 18, 8, 10, 0);
+
+        void Add(string started, string status, string detail)
+        {
+            var id = Db.StartRun("job", job.Id, job.Name);
+            if (status != "running") Db.FinishRun(id, status, detail, 0);
+            Db.Exec("UPDATE runs SET started=$s WHERE id=$i", ("$s", started), ("$i", id));
+        }
+
+        // Dün 16:00'da başladı, tamamlandı: yapılacak iş yok.
+        Add("2026-11-17 16:00:02", "success", "");
+        Assert.Empty(TaskPlanner.Overdue(morning));
+        Db.Exec("DELETE FROM runs");
+
+        // Dün 16:00'da başladı, bilgisayar kapanınca yarıda kaldı: sabah sürdürülür.
+        Add("2026-11-17 16:00:02", "failed", Db.Interrupted);
+        Assert.Single(TaskPlanner.Overdue(morning));
+        Db.Exec("DELETE FROM runs");
+
+        // Kayıt "çalışıyor" kalmış ama çalışan süreç yok: o da yarıda kalmıştır.
+        Add("2026-11-17 16:00:02", "running", "");
+        Assert.Single(TaskPlanner.Overdue(morning));
+        using (RunGate.TryEnter($"job-{job.Id}")) Assert.Empty(TaskPlanner.Overdue(morning));
+        Db.Exec("DELETE FROM runs");
+
+        // Gerçek bir hatayla bitti: kendiliğinden yeniden denenmez.
+        Add("2026-11-17 16:00:02", "failed", "Hedef bağlı değil");
+        Assert.Empty(TaskPlanner.Overdue(morning));
+
+        // Üç kez yarıda kaldıysa daha fazla denenmez.
+        Db.Exec("DELETE FROM runs");
+        Add("2026-11-17 16:00:02", "failed", Db.Interrupted);
+        Add("2026-11-18 07:55:00", "failed", Db.Interrupted);
+        Assert.Single(TaskPlanner.Overdue(morning));
+        Add("2026-11-18 08:05:00", "failed", Db.Interrupted);
+        Assert.Empty(TaskPlanner.Overdue(morning));
+    }
+
+    [Fact]
     public void Two_jobs_writing_the_log_at_once_do_not_overwrite_each_other()
     {
         using var s = new Sandbox();

@@ -248,7 +248,7 @@ public static class Db
         Exec("UPDATE runs SET ended=$e,status=$s,detail=$d,bytes=$b WHERE id=$i",
             ("$e", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)), ("$s", status), ("$d", detail), ("$b", bytes), ("$i", id));
 
-    private const string Interrupted = "Çalışma yarıda kesildi: uygulama veya bilgisayar kapandı.";
+    public const string Interrupted = "Çalışma yarıda kesildi: uygulama veya bilgisayar kapandı.";
 
     /// <summary>Bir işin bitiş kaydı yazılamamış çalışmalarını kapatır.</summary>
     public static int CloseOrphanRuns(string kind, long refId) =>

@@ -125,9 +125,17 @@ public static class Archiver
     /// <summary>7-Zip çıkış kodları: 0 başarılı, 1 uyarı (kilitli/eksik dosya), 2+ hata.</summary>
     private static bool Check(int code, string tool, string output)
     {
-        if (code >= 2) throw new IOException($"{tool} hata verdi (kod {code}): {LastLines(output)}");
+        if (IsSessionEnding(code)) throw new SessionEndingException();
+        // Windows'un süreci sonlandırdığı kodlar negatiftir; 0 ve 1 dışındaki her kod hatadır.
+        if (code is not (0 or 1)) throw new IOException($"{tool} hata verdi (kod {code}): {LastLines(output)}");
         return code == 1;
     }
+
+    /// <summary>
+    /// Oturum kapatılırken ya da bilgisayar kapanırken Windows alt süreçleri bu kodlarla sonlandırır
+    /// (0x40010004), yeni süreç başlatmayı da reddeder (0xC0000142). Bu bir yedekleme hatası değildir.
+    /// </summary>
+    public static bool IsSessionEnding(int code) => unchecked((uint)code) is 0x40010004 or 0xC0000142 or 0xC000013A;
 
     private static string LastLines(string text) =>
         string.Join(" | ", text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).TakeLast(4));
@@ -205,13 +213,27 @@ public static class Archiver
         catch (Exception e) when (e is ArgumentException or IOException or NotSupportedException) { return false; }
     }
 
+    /// <summary>
+    /// Yuva (socket) gibi içeriği olmayan özel dosyalar: bağlantı noktası olarak işaretli, sıfır boyutlu
+    /// dosyalardır ve hiçbir zaman okunamaz. Yedekte bulunmamaları eksik değildir.
+    /// </summary>
+    public static bool IsSpecialFile(string unreadLine)
+    {
+        try
+        {
+            var file = new FileInfo(PathOf(unreadLine));
+            return file.Exists && file.Attributes.HasFlag(FileAttributes.ReparsePoint) && file.Length == 0;
+        }
+        catch (Exception e) when (e is ArgumentException or IOException or NotSupportedException or UnauthorizedAccessException) { return false; }
+    }
+
     /// <summary>Okunamayan dosyaları günlüğe yazar. Gerçek bir eksik varsa true döner.</summary>
     private static bool ReportWarnings(int code, string text, Action<string>? log)
     {
         if (code != 1) return false;
         var all = UnreadFiles(text);
         var gone = all.Where(IsGone).ToList();
-        var skipped = all.Where(f => !IsOwnTransient(f) && !gone.Contains(f)).ToList();
+        var skipped = all.Where(f => !IsOwnTransient(f) && !gone.Contains(f) && !IsSpecialFile(f)).ToList();
         if (gone.Count > 0) log?.Invoke($"  not: {gone.Count} dosya sıkıştırma sırasında kaynaktan silindi, atlandı (ör. {PathOf(gone[0])})");
         if (all.Count > 0 && skipped.Count == 0) return false;
         if (log == null) return true;
@@ -381,3 +403,6 @@ public static class Archiver
         zstd.CopyTo(Stream.Null);
     }
 }
+
+/// <summary>Oturum kapanırken yarıda kalan çalışma. İptal gibi yayılır ama kullanıcı iptali değildir.</summary>
+public sealed class SessionEndingException() : OperationCanceledException("Oturum kapanıyor.");
