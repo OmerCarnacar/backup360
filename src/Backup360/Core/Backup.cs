@@ -29,9 +29,11 @@ public static class BackupRunner
         }
 
         using var log = new RunLog($"Yedekleme: {job.Name}", ui, "job", job.Id, job.Name, job.Mode);
+        log.Write(RunLog.StartedBy("yedekleme işi", job.Name));
         // Kilit bizdeyse bu işin "çalışıyor" görünen eski kaydı yarıda kesilmiş bir çalışmadır.
         Db.CloseOrphanRuns("job", job.Id);
         var runId = Db.StartRun("job", job.Id, job.Name);
+        log.AttachRun(runId);
         var space = WorkFolder.Create(job, log.Write);
         var work = space.Work;
         var outcome = new Outcome("failed", "", 0);
@@ -84,6 +86,7 @@ public static class BackupRunner
             Db.FinishRun(runId, outcome.Status, outcome.Detail, outcome.Bytes);
             try { Directory.Delete(work, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             await Notifier.ReportAsync("Yedekleme", job.Name, outcome.Status, outcome.Detail, started, outcome.Bytes, log.Write);
+            log.Write(RunLog.Summary(outcome.Status, outcome.Detail, outcome.Bytes, started));
         }
     }
 
@@ -244,7 +247,8 @@ public static class BackupRunner
                 foreach (var entry in root.EnumerateFileSystemInfos("*", new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 3, IgnoreInaccessible = true }))
                 {
                     if (entry is DirectoryInfo) names.Add(entry.Name);
-                    else if (StampedName.Match(entry.Name) is { Success: true } m) names.Add(m.Groups["item"].Value);
+                    // Fark yedeği tek başına geri yüklenemez: yalnızca tam yedek "yedeği var" sayılır.
+                    else if (StampedName.Match(entry.Name) is { Success: true } m && Differential.Split(m.Groups["item"].Value).Base == null) names.Add(m.Groups["item"].Value);
                 }
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { names.Clear(); }
@@ -374,7 +378,7 @@ public static class BackupRunner
                     }
                     run.Total += sent;
                     Stage(log, "retention", item.Name);
-                    await Cloud.ApplyFolderRetentionAsync(target, baseFolder, job.Keep, job.KeepDays, log.Write, ct, job.Sources.Count > 1 ? 3 : 2);
+                    await Cloud.ApplyFolderRetentionAsync(target, baseFolder, job.Keep, job.KeepDays, log.Write, ct, job.Sources.Count > 1 ? 3 : 2, job.OnePerDay);
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception e)
@@ -438,7 +442,11 @@ public static class BackupRunner
                 complete = --_left == 0 && _ok;
             }
             if (complete && item.Fingerprint != null) Db.SetFingerprint(job.Id, item.Name, item.Fingerprint);
+            if (complete) Completed?.Invoke();
         }
+
+        /// <summary>Öğe tüm biçim ve hedeflere ulaşınca çalışır.</summary>
+        public Action? Completed { get; set; }
     }
 
     /// <summary>Arka plandaki gönderimleri canlı duruma yazar. Sıkıştırma bitince ilk gönderim ana göstergeye geçer.</summary>
@@ -532,6 +540,55 @@ public static class BackupRunner
         var (job, log) = (run.Job, run.Log);
         var request = new ArchiveRequest(item.Paths, job.Excludes, Path.Combine(run.Work, $"{item.Name}_{run.Stamp}"), job.Level, run.Password);
         var tracker = new ItemTracker(job, item, job.Formats.Count);
+        string? stage = null;
+        try
+        {
+            if (Differential.Applies(job))
+            {
+                Stage(log, "scan", item.Name + " dosyaları karşılaştırılıyor");
+                var where = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var excluded = Cloud.Excluder(job.Excludes);
+                var current = await Task.Run(() => Differential.Collect(item.Paths, excluded, where), ct);
+                var snapshot = Differential.Load(job.Id, item.Name);
+                var why = snapshot == null ? "ilk tam yedek" : Differential.WhyNotUsable(job, run.BaseFolder, item.Name, snapshot, DateTime.Today);
+                if (why == null)
+                {
+                    var plan = await Task.Run(() => Differential.Stage(run.Work, snapshot!, current, where, line => { log.Write(line); run.Warnings = true; }), ct);
+                    stage = plan.Stage;
+                    if (plan.Empty)
+                    {
+                        // Klasörün zaman damgası değişmiş ama dosyalar aynı: tam yedek hâlâ günceldir.
+                        log.Write($"[{item.Name}] tam yedekten ({snapshot!.Created:dd.MM.yyyy HH:mm}) beri dosya değişmemiş, fark yedeği gerekmedi.");
+                        run.Step += job.Formats.Count;
+                        foreach (var _ in job.Formats) tracker.Done(true);
+                        return;
+                    }
+                    request = new ArchiveRequest(Directory.GetFileSystemEntries(stage), Array.Empty<string>(),
+                        Path.Combine(run.Work, $"{Differential.DiffName(item.Name, snapshot!.BaseStamp)}_{run.Stamp}"), job.Level, run.Password);
+                    log.Write($"[{item.Name}] fark yedeği ({snapshot.Created:dd.MM.yyyy HH:mm} tam yedeğine göre): {plan.Changed} yeni/değişen, {plan.Deleted} silinen dosya");
+                }
+                else
+                {
+                    log.Write($"[{item.Name}] tam yedek alınıyor ({why})");
+                    var stamp = run.Stamp;
+                    tracker.Completed = () =>
+                    {
+                        try { Differential.Save(job.Id, item.Name, new Differential.Snapshot(stamp, DateTime.Now, job.Formats.ToList(), current)); }
+                        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { log.Write($"  uyarı: fark yedeği listesi kaydedilemedi, sonraki yedek tam alınır: {e.Message}"); }
+                    };
+                }
+            }
+            await CompressFormatsAsync(run, item, request, tracker, ct);
+        }
+        finally
+        {
+            if (stage != null) try { Directory.Delete(stage, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    private static async Task CompressFormatsAsync(ItemRun run, Item item, ArchiveRequest request, ItemTracker tracker, CancellationToken ct)
+    {
+        var (job, log) = (run.Job, run.Log);
         foreach (var key in job.Formats)
         {
             run.Step++;
@@ -598,7 +655,7 @@ public static class BackupRunner
                     Db.RecordBackup(target, run.BaseFolder, relative, job.Id, job.Name, size, fingerprint);
                     run.Board.Show(p.Label, "retention");
                     await run.Retention.WaitAsync(ct);
-                    try { await Cloud.ApplyRetentionAsync(target, run.BaseFolder, p.Format.Extension, job.Keep, job.KeepDays, log.Write, ct); }
+                    try { await Cloud.ApplyRetentionAsync(target, run.BaseFolder, p.Format.Extension, job.Keep, job.KeepDays, log.Write, ct, job.OnePerDay); }
                     finally { run.Retention.Release(); }
                 }
                 run.AddBytes(size);

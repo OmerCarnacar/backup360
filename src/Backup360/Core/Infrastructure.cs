@@ -268,12 +268,78 @@ public sealed class RunLog : IDisposable
     private readonly DateTime _started = DateTime.Now;
     private StreamWriter? _writer;
     private long _lastFlush;
+    // Çalışmaya ait ayrı günlük: kayıt numarası belli olana kadar satırlar bekletilir.
+    private List<string>? _runBuffer;
+    private StreamWriter? _runWriter;
+
+    /// <summary>Çalışma başına günlük dosyalarının klasörü.</summary>
+    public static string RunsDir => Directory.CreateDirectory(Path.Combine(AppPaths.LogDir, "calismalar")).FullName;
+
+    public static string RunFile(long runId) => Path.Combine(RunsDir, $"{runId}.log");
+
+    /// <summary>
+    /// İşi kimin başlattığı. Uygulama işi başlatırken bunu ortam değişkeniyle bildirir; değişken yoksa iş
+    /// Windows Görev Zamanlayıcı tarafından başlatılmıştır.
+    /// </summary>
+    public const string TriggerVariable = "BACKUP360_TRIGGER";
+
+    public static string Trigger() => Environment.GetEnvironmentVariable(TriggerVariable) switch
+    {
+        "kullanici" => $"{Environment.UserName} kullanıcısı",
+        "telafi" => "kaçırılan zamanlamanın telafisi",
+        "grup" => "grup çalıştırması",
+        _ => "zamanlayıcı",
+    };
+
+    /// <summary>Çalışmanın ilk satırı: ne, nerede, kim tarafından, hangi sürümle.</summary>
+    public static string StartedBy(string what, string name) =>
+        $"\"{name}\" {what} \"{Environment.MachineName}\" üzerinde {Trigger()} tarafından başlatıldı " +
+        $"(sürüm: {Backup360.AppInfo.Version}, Windows {Environment.OSVersion.Version}, {(Environment.Is64BitProcess ? "64" : "32")} bit)";
+
+    /// <summary>Çalışmanın son satırı: durum, süre, boyut ve ayrıntı tek satırda.</summary>
+    public static string Summary(string status, string detail, long bytes, DateTime started)
+    {
+        var text = status switch
+        {
+            "success" => "Başarılı", "warning" => "Uyarılı", "failed" => "Hatalı", "canceled" => "İptal edildi",
+            "corrupt" => "YEDEK BOZUK", "ransomware" => "Durduruldu (fidye şüphesi)", "skipped" => "Atlandı", _ => status,
+        };
+        var took = DateTime.Now - started;
+        var size = bytes <= 0 ? "veri aktarılmadı"
+            : bytes >= 1L << 30 ? $"{bytes / (double)(1L << 30):0.00} GB" : $"{bytes / (double)(1L << 20):0.0} MB";
+        return $"Özet: {text} · süre {(int)took.TotalHours:00}:{took.Minutes:00}:{took.Seconds:00} · {size}" + (detail.Length > 0 ? $" · {detail}" : "");
+    }
+
+    /// <summary>Bu günlüğü bir çalışma kaydına bağlar; o andan önceki satırlar da çalışmanın dosyasına yazılır.</summary>
+    public void AttachRun(long runId)
+    {
+        lock (_gate)
+        {
+            try
+            {
+                PruneRunFiles();
+                _runWriter = new StreamWriter(new FileStream(RunFile(runId), FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete), new UTF8Encoding(true)) { AutoFlush = true };
+                foreach (var line in _runBuffer ?? new List<string>()) _runWriter.WriteLine(line);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _runWriter = null; }
+            _runBuffer = null;
+        }
+    }
+
+    /// <summary>180 günden eski çalışma günlükleri silinir.</summary>
+    private static void PruneRunFiles()
+    {
+        foreach (var file in new DirectoryInfo(RunsDir).EnumerateFiles("*.log"))
+            if (file.LastWriteTime < DateTime.Now.AddDays(-180))
+                try { file.Delete(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    }
     private static readonly Mutex FileGate = new(false, "Backup360-Gunluk");
 
     public RunLog(string title, Action<string>? ui, string kind = "", long refId = 0, string name = "", string mode = "archive")
     {
         _ui = ui;
         _owner = kind.Length > 0 ? (kind, refId, name) : ("sistem", 0, title);
+        if (kind.Length > 0) _runBuffer = new List<string>();
         _file = Path.Combine(AppPaths.LogDir, $"backup360-{DateTime.Now:yyyyMM}.log");
         if (kind.Length > 0)
         {
@@ -304,6 +370,10 @@ public sealed class RunLog : IDisposable
                 finally { if (held) FileGate.ReleaseMutex(); }
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _writer = null; }
+            if (_runBuffer != null) _runBuffer.Add(line);
+            else if (_runWriter != null)
+                try { _runWriter.WriteLine(line); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _runWriter = null; }
             if (_live != null)
             {
                 _live.Log.Add(line[11..]);
@@ -327,7 +397,9 @@ public sealed class RunLog : IDisposable
             try
             {
                 _writer?.Flush();
-                File.AppendAllLines(_file, e.ToString().Split('\n').Select(l => "      | " + l.TrimEnd()));
+                var lines = e.ToString().Split('\n').Select(l => "      | " + l.TrimEnd()).ToList();
+                File.AppendAllLines(_file, lines);
+                foreach (var line in lines) _runWriter?.WriteLine(line);
             }
             catch (IOException) { }
         }
@@ -363,6 +435,8 @@ public sealed class RunLog : IDisposable
         {
             _writer?.Dispose();
             _writer = null;
+            _runWriter?.Dispose();
+            _runWriter = null;
         }
         if (_liveFile == null) return;
         lock (_gate)

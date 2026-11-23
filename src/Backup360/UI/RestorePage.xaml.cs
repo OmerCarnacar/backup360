@@ -38,7 +38,7 @@ public partial class RestorePage
         try
         {
             _points = await RestoreCatalog.ListAsync(job, CancellationToken.None);
-            Points.ItemsSource = _points.Select(p => new RestoreRow(p, p.When, p.Item, p.IsArchive ? p.Extension : "Klasör", p.Target, p.Size > 0 ? Fmt.Size(p.Size) : "")).ToList();
+            Points.ItemsSource = _points.Select(p => new RestoreRow(p, p.When, p.Item, !p.IsArchive ? "Klasör" : p.IsDiff ? p.Extension + " · fark" : p.Extension, p.Target, p.Size > 0 ? Fmt.Size(p.Size) : "")).ToList();
             Empty.Visibility = _points.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (Exception x) when (x is IOException or InvalidOperationException)

@@ -31,17 +31,24 @@ public static class Launcher
 
     /// <summary>İşler her zaman ayrı süreçte çalışır: pencere kapansa da iş sürer, pano canlı durumu izler.</summary>
     public static void Start(string kind, long id) =>
-        Process.Start(new ProcessStartInfo(AppPaths.ExePath, kind == "job" ? $"--run-job {id}" : $"--run-rule {id}") { UseShellExecute = false, CreateNoWindow = true });
+        Process.Start(ByUser(new ProcessStartInfo(AppPaths.ExePath, kind == "job" ? $"--run-job {id}" : $"--run-rule {id}") { UseShellExecute = false, CreateNoWindow = true }));
 
     public static void StartAudit(bool deep) =>
-        Process.Start(new ProcessStartInfo(AppPaths.ExePath, deep ? "--run-audit deep" : "--run-audit quick") { UseShellExecute = false, CreateNoWindow = true });
+        Process.Start(ByUser(new ProcessStartInfo(AppPaths.ExePath, deep ? "--run-audit deep" : "--run-audit quick") { UseShellExecute = false, CreateNoWindow = true }));
+
+    /// <summary>Çalışma günlüğü işi kimin başlattığını yazar.</summary>
+    private static ProcessStartInfo ByUser(ProcessStartInfo psi, string who = "kullanici")
+    {
+        psi.Environment[RunLog.TriggerVariable] = who;
+        return psi;
+    }
 
     public static void StartGuard() =>
         Process.Start(new ProcessStartInfo(AppPaths.ExePath, "--run-guard") { UseShellExecute = false, CreateNoWindow = true });
 
     public static void StartGroup(string group)
     {
-        var psi = new ProcessStartInfo(AppPaths.ExePath) { UseShellExecute = false, CreateNoWindow = true };
+        var psi = ByUser(new ProcessStartInfo(AppPaths.ExePath) { UseShellExecute = false, CreateNoWindow = true });
         psi.ArgumentList.Add("--run-group");
         psi.ArgumentList.Add(group);
         Process.Start(psi);
@@ -128,6 +135,7 @@ internal static class Program
                 var psi = new ProcessStartInfo(AppPaths.ExePath) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = AppPaths.BaseDir };
                 psi.ArgumentList.Add("--run-job");
                 psi.ArgumentList.Add(job.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                psi.Environment[RunLog.TriggerVariable] = "telafi";
                 Process.Start(psi)?.Dispose();
             }
             if (TaskPlanner.AuditOverdue(DateTime.Now))
@@ -136,6 +144,7 @@ internal static class Program
                 var psi = new ProcessStartInfo(AppPaths.ExePath) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = AppPaths.BaseDir };
                 psi.ArgumentList.Add("--run-audit");
                 psi.ArgumentList.Add(Db.GetSetting("audit_deep") == "1" ? "deep" : "quick");
+                psi.Environment[RunLog.TriggerVariable] = "telafi";
                 Process.Start(psi)?.Dispose();
             }
         }

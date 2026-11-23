@@ -46,10 +46,33 @@ public class AuditTests
         using var s = new Sandbox();
         var (_, file) = await Backup(s);
         File.Delete(file);
-        Assert.Equal("corrupt", (await BackupAudit.RunAsync(false, null, default)).Status);
+        // Eksik yedek uyarıdır; "yedek bozuk" alarmı yalnızca bozulmuş dosya içindir.
+        Assert.Equal("warning", (await BackupAudit.RunAsync(false, null, default)).Status);
         Assert.Equal(BackupAudit.Missing, Db.BackupFiles().Single().Status);
         Db.ForgetMissingBackups();
         Assert.Empty(Db.BackupFiles());
+    }
+
+    [Fact]
+    public void Old_missing_backup_with_a_newer_copy_is_retired_but_never_a_base_or_a_recent_one()
+    {
+        var job = new Job { Id = 7, KeepDays = 3 };
+        var now = new DateTime(2026, 11, 23, 8, 0, 0);
+        BackupFile F(string path) => new("T", "B", path, 7, "İş", 1, "", "", null, "ok", "");
+
+        // 10 Kasım'ın yedeği yok, 18 Kasım'ın yeni tam yedeği duruyor: beklenen yokluk.
+        Assert.True(BackupAudit.IsRetired(F("10-11-2026_11_27/A_20261110-112715.zip"), job, new[] { "18-11-2026_16_00/A_20261118-160000.zip" }, now));
+        // Daha yeni yedeği yok: gerçek kayıp.
+        Assert.False(BackupAudit.IsRetired(F("10-11-2026_11_27/A_20261110-112715.zip"), job, new[] { "18-11-2026_16_00/B_20261118-160000.zip" }, now));
+        // Saklama süresi içinde (dün): gerçek kayıp.
+        Assert.False(BackupAudit.IsRetired(F("22-11-2026_16_00/A_20261122-160000.zip"), job, new[] { "23-11-2026_07_59/A_20261123-075900.zip" }, now));
+        // Hedefte duran bir fark bu tam yedeğe dayanıyor: gerçek kayıp.
+        Assert.False(BackupAudit.IsRetired(F("10-11-2026_11_27/A_20261110-112715.zip"), job,
+            new[] { "18-11-2026_16_00/A_20261118-160000.zip", "19-11-2026_16_00/A_FARK-20261110-112715_20261119-160000.zip" }, now));
+        // Daha yeni olan yalnızca tam yedeği kayıp bir fark: kullanılamaz, sayılmaz.
+        Assert.False(BackupAudit.IsRetired(F("10-11-2026_11_27/A_20261110-112715.zip"), job, new[] { "19-11-2026_16_00/A_FARK-20261115-160000_20261119-160000.zip" }, now));
+        // Saklama süresi tanımlı değilse hiçbir eksik kendiliğinden kaldırılmaz.
+        Assert.False(BackupAudit.IsRetired(F("10-11-2026_11_27/A_20261110-112715.zip"), new Job { Id = 7 }, new[] { "18-11-2026_16_00/A_20261118-160000.zip" }, now));
     }
 
     [Fact]

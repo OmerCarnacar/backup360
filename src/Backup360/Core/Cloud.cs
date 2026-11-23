@@ -595,9 +595,9 @@ public static class Cloud
     /// Her öğe ve format için son N yedeği bırakır. Yalnızca Backup360'ın ad kalıbına uyan dosyalar
     /// silinir; "yalnızca değişenler" açıkken değişmeyen klasörün tek yedeği de böylece korunur.
     /// </summary>
-    public static Task<int> ApplyRetentionAsync(string target, string folder, string extension, int keep, int keepDays, Action<string>? log, CancellationToken ct)
+    public static Task<int> ApplyRetentionAsync(string target, string folder, string extension, int keep, int keepDays, Action<string>? log, CancellationToken ct, bool onePerDay = false)
     {
-        if (keep <= 0 && keepDays <= 0) return Task.FromResult(0);
+        if (keep <= 0 && keepDays <= 0 && !onePerDay) return Task.FromResult(0);
         return UseAsync(target, async r =>
         {
             var cutoff = keepDays > 0 ? DateTime.Now.AddDays(-keepDays) : DateTime.MinValue;
@@ -606,10 +606,23 @@ public static class Cloud
             var old = (await r.ListTreeAsync(folder, false, ct)).Where(i => !i.IsDir)
                 .Select(i => (i.Path, Match: pattern.Match(i.Path)))
                 .Where(x => x.Match.Success)
-                .GroupBy(x => x.Match.Groups["item"].Value, StringComparer.OrdinalIgnoreCase)
-                // En yeni kopya hiçbir kuralla silinmez: değişmeyen klasörün tek yedeği korunur.
-                .SelectMany(g => g.OrderByDescending(x => x.Match.Groups["stamp"].Value, StringComparer.Ordinal)
-                    .Where((x, i) => i > 0 && ((keep > 0 && i >= keep) || Old(x.Match.Groups["stamp"].Value))))
+                .Select(x =>
+                {
+                    var (item, baseStamp) = Differential.Split(x.Match.Groups["item"].Value);
+                    return (x.Path, Item: item, Stamp: x.Match.Groups["stamp"].Value, Base: baseStamp);
+                })
+                // Tam ve fark yedekleri aynı öğenin yedekleri sayılır.
+                .GroupBy(x => x.Item, StringComparer.OrdinalIgnoreCase)
+                .SelectMany(g =>
+                {
+                    var list = g.OrderByDescending(x => x.Stamp, StringComparer.Ordinal).ToList();
+                    // En yeni kopya hiçbir kuralla silinmez: değişmeyen klasörün tek yedeği korunur.
+                    // Aynı gün: daha yeni bir yedekle aynı tarihi taşıyan (yyyyMMdd) eski yedek.
+                    var drop = new HashSet<int>(Enumerable.Range(1, Math.Max(0, list.Count - 1))
+                        .Where(i => (keep > 0 && i >= keep) || Old(list[i].Stamp) || (onePerDay && list[i].Stamp[..8] == list[i - 1].Stamp[..8])));
+                    Differential.ProtectBases(list.Select(x => (x.Stamp, x.Base)).ToList(), drop);
+                    return drop.Select(i => list[i]);
+                })
                 .Select(x => x.Path)
                 .ToList();
 
@@ -637,9 +650,9 @@ public static class Cloud
         WorkFolder.ParseRunFolder(name) ?? DateTime.ParseExact(name, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     /// <summary>Sıkıştırılmamış tarih klasörlerine saklama kuralını uygular; yalnızca tarih/öğe yapısına dokunur.</summary>
-    public static Task<int> ApplyFolderRetentionAsync(string target, string folder, int keep, int keepDays, Action<string>? log, CancellationToken ct, int depth = 2)
+    public static Task<int> ApplyFolderRetentionAsync(string target, string folder, int keep, int keepDays, Action<string>? log, CancellationToken ct, int depth = 2, bool onePerDay = false)
     {
-        if (keep <= 0 && keepDays <= 0) return Task.FromResult(0);
+        if (keep <= 0 && keepDays <= 0 && !onePerDay) return Task.FromResult(0);
         return UseAsync(target, async r =>
         {
             var cutoff = keepDays > 0 ? DateTime.Today.AddDays(-keepDays) : DateTime.MinValue;
@@ -648,8 +661,12 @@ public static class Cloud
                 .Select(i => pattern.Match(i.Path))
                 .Where(m => m.Success)
                 .GroupBy(m => m.Groups["item"].Value, StringComparer.OrdinalIgnoreCase)
-                .SelectMany(g => g.OrderByDescending(m => FolderDate(m.Groups["date"].Value))
-                    .Where((m, i) => i > 0 && ((keep > 0 && i >= keep) || FolderDate(m.Groups["date"].Value).Date < cutoff)))
+                .SelectMany(g =>
+                {
+                    var list = g.OrderByDescending(m => FolderDate(m.Groups["date"].Value)).ToList();
+                    bool SameDay(int i) => onePerDay && FolderDate(list[i].Groups["date"].Value).Date == FolderDate(list[i - 1].Groups["date"].Value).Date;
+                    return list.Where((m, i) => i > 0 && ((keep > 0 && i >= keep) || FolderDate(m.Groups["date"].Value).Date < cutoff || SameDay(i)));
+                })
                 .Select(m => m.Value)
                 .ToList();
             foreach (var path in old)

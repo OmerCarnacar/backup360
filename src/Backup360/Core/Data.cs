@@ -47,6 +47,9 @@ public sealed class Job
     public string DatedOutput { get; set; } = "archive";   // archive: sıkıştırılmış | folder: klasör olarak
     public int DaysFilter { get; set; }   // >0 ise yalnızca son N günde değişen alt klasörler
     public int KeepDays { get; set; }     // >0 ise N günden eski yedekler silinir
+    public bool OnePerDay { get; set; }   // aynı gün içinde her öğenin yalnızca en son yedeği kalır
+    public bool Differential { get; set; }   // tam + fark yedeği (yalnızca sıkıştırılmış yedeklerde)
+    public int FullEveryDays { get; set; } = 7;   // fark açıkken tam yedek kaç günde bir alınır
     public List<string> Targets { get; set; } = new();
     public string DateBy { get; set; } = "run";   // run | folder
     public bool OnlyChanged { get; set; } = true;

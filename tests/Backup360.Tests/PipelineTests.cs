@@ -189,6 +189,38 @@ public class PipelineTests
         Assert.Equal(expected, Cloud.JobFolder(new Job { Name = name, Mode = "dated", UseDateFolder = useDate, RemoteFolder = remote }));
 
     [Fact]
+    public async Task Same_day_backup_replaces_the_earlier_one_of_that_day_only()
+    {
+        using var s = new Sandbox();
+        var root = Path.Combine(s.Cloud1, "gunluk");
+        Touch(Path.Combine(root, "16-11-2026_16_00"), "A_20261116-160000.zip");
+        Touch(Path.Combine(root, "17-11-2026_16_00"), "A_20261117-160000.zip");
+        Touch(Path.Combine(root, "17-11-2026_16_00"), "B_20261117-160000.zip");
+        Touch(Path.Combine(root, "18-11-2026_08_20"), "A_20261118-082000.zip");
+        Touch(Path.Combine(root, "18-11-2026_16_00"), "A_20261118-160000.zip");
+
+        // Kapalıyken hiçbir şey silinmez.
+        Assert.Equal(0, await Cloud.ApplyRetentionAsync("gdrive", "gunluk", "zip", 0, 0, null, default));
+
+        Assert.Equal(1, await Cloud.ApplyRetentionAsync("gdrive", "gunluk", "zip", 0, 0, null, default, onePerDay: true));
+        // Yalnızca 18'inin sabah yedeği gider; önceki günler ve başka öğeler kalır, boşalan klasör kaldırılır.
+        Assert.False(Directory.Exists(Path.Combine(root, "18-11-2026_08_20")));
+        Assert.True(File.Exists(Path.Combine(root, "18-11-2026_16_00", "A_20261118-160000.zip")));
+        Assert.True(File.Exists(Path.Combine(root, "17-11-2026_16_00", "A_20261117-160000.zip")));
+        Assert.True(File.Exists(Path.Combine(root, "17-11-2026_16_00", "B_20261117-160000.zip")));
+        Assert.True(File.Exists(Path.Combine(root, "16-11-2026_16_00", "A_20261116-160000.zip")));
+
+        // Klasör olarak gönderimde de aynı kural.
+        var folders = Path.Combine(s.Cloud1, "klasor");
+        foreach (var run in new[] { "17-11-2026_16_00", "18-11-2026_08_20", "18-11-2026_16_00" })
+            Touch(Path.Combine(folders, run, "P"), "x.txt");
+        Assert.Equal(1, await Cloud.ApplyFolderRetentionAsync("gdrive", "klasor", 0, 0, null, default, onePerDay: true));
+        Assert.False(Directory.Exists(Path.Combine(folders, "18-11-2026_08_20")));
+        Assert.True(Directory.Exists(Path.Combine(folders, "18-11-2026_16_00", "P")));
+        Assert.True(Directory.Exists(Path.Combine(folders, "17-11-2026_16_00", "P")));
+    }
+
+    [Fact]
     public async Task Retention_understands_run_folders()
     {
         using var s = new Sandbox();

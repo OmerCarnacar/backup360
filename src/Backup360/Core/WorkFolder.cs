@@ -128,9 +128,20 @@ public static class WorkFolder
 
         var old = runs.SelectMany(r => Directory.GetFiles(r.Dir).Select(f => (File: f, r.Date, Match: Stamped.Match(Path.GetFileName(f)))))
             .Where(x => x.Match.Success)
-            .GroupBy(x => x.Match.Groups["item"].Value + "|" + x.Match.Groups["ext"].Value, StringComparer.OrdinalIgnoreCase)
-            .SelectMany(g => g.OrderByDescending(x => x.Match.Groups["stamp"].Value, StringComparer.Ordinal).Skip(1))
-            .Where(x => x.Date!.Value.Date < cutoff)
+            .Select(x =>
+            {
+                var (item, baseStamp) = Differential.Split(x.Match.Groups["item"].Value);
+                return (x.File, x.Date, Key: item + "|" + x.Match.Groups["ext"].Value, Stamp: x.Match.Groups["stamp"].Value, Base: baseStamp);
+            })
+            .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .SelectMany(g =>
+            {
+                var list = g.OrderByDescending(x => x.Stamp, StringComparer.Ordinal).ToList();
+                var drop = new HashSet<int>(Enumerable.Range(1, Math.Max(0, list.Count - 1)).Where(i => list[i].Date!.Value.Date < cutoff));
+                // Fark yedeği durdukça dayandığı tam yedek silinmez.
+                Differential.ProtectBases(list.Select(x => (x.Stamp, x.Base)).ToList(), drop);
+                return drop.Select(i => list[i]);
+            })
             .Select(x => x.File)
             .ToList();
 

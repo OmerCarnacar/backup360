@@ -27,6 +27,33 @@ public static class BackupAudit
 
     private static bool HasArchives(Job j) => j.Mode is "archive" or "database" || (j.Mode == "dated" && j.DatedOutput == "archive");
 
+    /// <summary>
+    /// Hedefte olmayan yedek, işin saklama süresini aşmışsa ve aynı öğenin daha yeni, kullanılabilir bir
+    /// yedeği hedefte duruyorsa artık beklenen bir yokluktur: kaydı kaldırılır, sorun sayılmaz.
+    /// Bir fark yedeğinin dayandığı tam yedek hiçbir zaman bu kapsama girmez.
+    /// </summary>
+    public static bool IsRetired(BackupFile f, Job? job, IEnumerable<string> present, DateTime now)
+    {
+        if (job == null || job.KeepDays <= 0) return false;
+        var name = Stamped.Match(f.Path[(f.Path.LastIndexOf('/') + 1)..]);
+        if (!name.Success) return false;
+        var stamp = name.Groups["stamp"].Value;
+        if (!DateTime.TryParseExact(stamp, "yyyyMMdd-HHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var when) || when >= now.AddDays(-job.KeepDays)) return false;
+        var (item, baseStamp) = Differential.Split(name.Groups["item"].Value);
+        var ext = name.Groups["ext"].Value;
+
+        var copies = present.Select(p => Stamped.Match(p[(p.LastIndexOf('/') + 1)..]))
+            .Where(m => m.Success && m.Groups["ext"].Value == ext)
+            .Select(m => (Split: Differential.Split(m.Groups["item"].Value), Stamp: m.Groups["stamp"].Value))
+            .Where(x => string.Equals(x.Split.Item, item, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        // Hedefte duran bir fark bu tam yedeğe dayanıyorsa yokluğu gerçek bir kayıptır.
+        if (baseStamp == null && copies.Any(x => x.Split.Base == stamp)) return false;
+        var fulls = copies.Where(x => x.Split.Base == null).Select(x => x.Stamp).ToHashSet();
+        // Daha yeni bir tam yedek ya da tam yedeği yerinde duran daha yeni bir fark.
+        return copies.Any(x => string.CompareOrdinal(x.Stamp, stamp) > 0 && (x.Split.Base == null || fulls.Contains(x.Split.Base)));
+    }
+
     /// <summary>Bu özellikten önce gönderilmiş yedekleri mevcut durumlarıyla kayda alır.</summary>
     private static void Adopt(Job job, string target, string folder, Dictionary<string, (long Size, string Md5)> remote, HashSet<string> known)
     {
@@ -47,7 +74,9 @@ public static class BackupAudit
 
         var title = deep ? "Tam yedek denetimi" : "Hızlı yedek denetimi";
         using var log = new RunLog(title, ui, "audit", 0, title, "audit");
+        log.Write(RunLog.StartedBy("denetimi", title));
         var runId = Db.StartRun("audit", 0, title);
+        log.AttachRun(runId);
         var started = DateTime.Now;
         var work = WorkFolder.CreateWork();
         var outcome = new BackupRunner.Outcome("failed", "", 0);
@@ -73,6 +102,9 @@ public static class BackupAudit
             Db.FinishRun(runId, outcome.Status, outcome.Detail, outcome.Bytes);
             try { Directory.Delete(work, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             await Notifier.ReportAsync("Yedek denetimi", title, outcome.Status, outcome.Detail, started, outcome.Bytes, log.Write);
+            // Bu denetimde yeniden görülmeyen eski denetim sorunları kapanır.
+            log.Write($"Bitti: {outcome.Status}");
+            log.Write(RunLog.Summary(outcome.Status, outcome.Detail, outcome.Bytes, started));
         }
     }
 
@@ -87,7 +119,7 @@ public static class BackupAudit
         var jobs = Db.Jobs();
         var targets = new TargetSet();
         var unreachable = new List<string>();
-        int ok = 0, changed = 0, missing = 0;
+        int ok = 0, changed = 0, missing = 0, retired = 0;
 
         log.Update(l => { l.Stage = "scan"; l.Item = "Hedefler karşılaştırılıyor"; l.Percent = -1; });
 
@@ -114,6 +146,13 @@ public static class BackupAudit
             log.Update(l => { l.Item = $"{group.Key.Target}:{group.Key.Base}"; l.Step = current; l.Steps = count; });
             if (!targets.Contains(group.Key.Target))
             {
+                // Artık hiçbir işin kullanmadığı, silinmiş bir hedefin kayıtları: denetlenecek bir şey yok.
+                if (!jobs.Any(j => j.Targets.Contains(group.Key.Target, StringComparer.OrdinalIgnoreCase)))
+                {
+                    foreach (var f in group) Db.ForgetBackup(f.Target, f.Base, f.Path);
+                    log.Write($"  artık tanımlı olmayan {group.Key.Target} hedefinin {group.Count()} kaydı kaldırıldı");
+                    continue;
+                }
                 unreachable.Add($"{group.Key.Target}: hedef tanımlı değil");
                 continue;
             }
@@ -131,6 +170,13 @@ public static class BackupAudit
             foreach (var f in group)
             {
                 string status, detail = "";
+                if (!remote.ContainsKey(f.Path) && IsRetired(f, jobs.FirstOrDefault(j => j.Id == f.JobId), remote.Keys, DateTime.Now))
+                {
+                    Db.ForgetBackup(f.Target, f.Base, f.Path);
+                    retired++;
+                    log.Write($"  saklama süresi dolmuş, daha yeni yedeği var; kaydı kaldırıldı: {f.Target}:{f.Base}/{f.Path}");
+                    continue;
+                }
                 if (!remote.TryGetValue(f.Path, out var info)) { status = Missing; detail = "Hedefte bulunamadı"; missing++; }
                 else if (info.Size != f.Size || (f.Md5.Length > 0 && info.Md5.Length > 0 && !string.Equals(info.Md5, f.Md5, StringComparison.OrdinalIgnoreCase)))
                 {
@@ -192,8 +238,10 @@ public static class BackupAudit
 
         var summary = $"{ok} sağlam, {changed} bozuk, {missing} eksik";
         if (unreachable.Count > 0) summary += $", {unreachable.Count} kontrol edilemedi";
+        if (retired > 0) summary += $", {retired} eski kayıt kaldırıldı";
         log.Write("Sonuç: " + summary);
-        var status2 = changed + missing > 0 ? "corrupt" : unreachable.Count > 0 ? "failed" : "success";
+        // "Bozuk" yalnızca parmak izi değişmiş ya da açılamayan yedektir; eksik yedek ayrı bir uyarıdır.
+        var status2 = changed > 0 ? "corrupt" : missing > 0 ? "warning" : unreachable.Count > 0 ? "failed" : "success";
         return new BackupRunner.Outcome(status2, unreachable.Count > 0 ? summary + ": " + string.Join(" ; ", unreachable.Take(3)) : summary, 0);
     }
 }

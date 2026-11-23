@@ -63,7 +63,7 @@ public partial class HealthPage
         Reload();
         if (Db.LastRun("audit", 0) is { } last)
         {
-            var severity = last.Status switch { "success" => WUI.InfoBarSeverity.Success, "corrupt" or "failed" => WUI.InfoBarSeverity.Error, _ => WUI.InfoBarSeverity.Informational };
+            var severity = last.Status switch { "success" => WUI.InfoBarSeverity.Success, "corrupt" or "failed" => WUI.InfoBarSeverity.Error, "warning" => WUI.InfoBarSeverity.Warning, _ => WUI.InfoBarSeverity.Informational };
             Notify(last.Detail, severity);
         }
     }

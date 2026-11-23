@@ -78,6 +78,29 @@ public class BugFixTests
     }
 
     [Fact]
+    public async Task Every_run_has_its_own_log_with_who_started_it_and_a_summary()
+    {
+        using var s = new Sandbox();
+        var job = new Job { Name = "Kayitli", Mode = "archive", Sources = new() { s.Tree("V") }, Formats = new() { "zip" }, Targets = new() { "gdrive" } };
+        Db.Save(job);
+        Assert.Equal("success", (await BackupRunner.RunAsync(job.Id, null, default)).Status);
+        var run = Db.LastRun("job", job.Id)!;
+        var lines = File.ReadAllLines(RunLog.RunFile(run.Id));
+        Assert.EndsWith("=== Yedekleme: Kayitli ===", lines[0]);
+        Assert.Contains($"\"Kayitli\" yedekleme işi \"{Environment.MachineName}\" üzerinde zamanlayıcı tarafından başlatıldı (sürüm: ", lines[1]);
+        Assert.Contains("Bitti: success", string.Join("\n", lines));
+        Assert.Matches(@"Özet: Başarılı · süre \d\d:\d\d:\d\d · ", lines[^1]);
+        // Başka işin satırları bu çalışmanın günlüğüne karışmaz.
+        Assert.DoesNotContain(lines, l => l.Contains("Başka iş"));
+
+        Environment.SetEnvironmentVariable(RunLog.TriggerVariable, "kullanici");
+        try { Assert.StartsWith(Environment.UserName + " kullanıcısı", RunLog.Trigger()); }
+        finally { Environment.SetEnvironmentVariable(RunLog.TriggerVariable, null); }
+        Assert.Equal("zamanlayıcı", RunLog.Trigger());
+        Assert.Null(Problems.Classify(RunLog.Summary("failed", "HATA: hedef yok", 0, DateTime.Now)));
+    }
+
+    [Fact]
     public void Two_jobs_writing_the_log_at_once_do_not_overwrite_each_other()
     {
         using var s = new Sandbox();

@@ -57,6 +57,9 @@ public partial class JobEditorWindow
         Folder.Text = job.RemoteFolder;
         Keep.Value = job.Keep;
         KeepDays.Value = job.KeepDays;
+        OnePerDay.IsChecked = job.OnePerDay;
+        DiffOn.IsChecked = job.Differential;
+        FullEvery.Value = Math.Max(1, job.FullEveryDays);
         _schedule = new ScheduleEditor(job.Schedule);
         ScheduleHost.Content = _schedule;
 
@@ -146,6 +149,9 @@ public partial class JobEditorWindow
         var db = DbMode.IsChecked == true;
         if (db) Compress.IsChecked = true;   // Veritabanı yedekleri her zaman arşivlenir.
         Compress.IsEnabled = !db;
+        // Fark yedeği dosya arşivlerinde çalışır; veritabanı ve sıkıştırmasız gönderimde kapalıdır.
+        DiffOn.IsEnabled = !db && Compress.IsChecked == true;
+        FullEvery.IsEnabled = DiffOn.IsEnabled && DiffOn.IsChecked == true;
         MirrorDelete.IsEnabled = FolderMode.IsChecked == true && Compress.IsChecked != true && EachFolder.IsChecked != true;
         if (FolderMode.IsChecked != true) EachFolder.IsChecked = false;
         EachFolder.IsEnabled = FolderMode.IsChecked == true;
@@ -309,6 +315,9 @@ public partial class JobEditorWindow
             _job.RemoteFolder = Folder.Text.Trim();
             _job.Keep = (int)(Keep.Value ?? 0);
             _job.KeepDays = (int)(KeepDays.Value ?? 0);
+            _job.OnePerDay = OnePerDay.IsChecked == true;
+            _job.Differential = DiffOn.IsChecked == true;
+            _job.FullEveryDays = Math.Max(1, (int)(FullEvery.Value ?? 7));
             _job.Schedule = _schedule.Value;
             ApplyDb(_job);
             _job.DbAll = DbAll.IsChecked == true && Engine is not ("sqlite" or "firebird");

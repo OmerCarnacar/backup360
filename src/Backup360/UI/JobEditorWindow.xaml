@@ -109,6 +109,14 @@
                             <StackPanel><TextBlock Text="Saklanacak yedek sayısı (0 = hepsi)" Style="{StaticResource FieldLabel}" /><ui:NumberBox x:Name="Keep" Minimum="0" Maximum="9999" /></StackPanel>
                             <StackPanel Grid.Column="2"><TextBlock Text="Şu kadar günden eskileri sil (0 = silme)" Style="{StaticResource FieldLabel}" /><ui:NumberBox x:Name="KeepDays" Minimum="0" Maximum="36500" /></StackPanel>
                         </Grid>
+                        <CheckBox x:Name="OnePerDay" Content="Aynı gün yeniden yedeklenirse o günün önceki yedeğini sil" Margin="0,8,0,0" />
+                        <CheckBox x:Name="DiffOn" Content="Tam + fark yedeği: arada yalnızca değişen dosyaları yedekle" Margin="0,8,0,0" Checked="AnyChanged" Unchecked="AnyChanged" />
+                        <StackPanel Orientation="Horizontal" Margin="28,4,0,0">
+                            <TextBlock Text="Tam yedek her" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ui:NumberBox x:Name="FullEvery" Minimum="1" Maximum="365" Width="120" />
+                            <TextBlock Text="günde bir" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Text="Yalnızca sıkıştırılmış yedeklerde geçerlidir. Fark yedeği dayandığı tam yedekle birlikte geri yüklenir; fark durdukça tam yedek silinmez." Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="28,2,0,0" />
                         <TextBlock Text="Her öğenin en yeni yedeği her zaman kalır." Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,0" />
                         <TextBlock Text="Zamanlama" Style="{StaticResource Section}" />
                         <ContentControl x:Name="ScheduleHost" />

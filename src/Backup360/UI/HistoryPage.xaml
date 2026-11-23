@@ -6,15 +6,16 @@
         <Grid Margin="0,0,0,12">
             <StackPanel>
                 <TextBlock Text="Geçmiş" Style="{StaticResource PageTitle}" />
-                <TextBlock Text="Çalışmaların süresi, aktarılan veri ve ortalama hızı." Style="{StaticResource Muted}" Margin="0,2,0,0" />
+                <TextBlock Text="Çalışmaların süresi, aktarılan veri ve ortalama hızı. Bir satıra çift tıklayınca o çalışmanın günlüğü açılır." Style="{StaticResource Muted}" Margin="0,2,0,0" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <ui:Button Content="Çalışmanın günlüğü" Icon="{ui:SymbolIcon DocumentText24}" Appearance="Primary" Margin="0,0,8,0" Click="RunLog_Click" />
                 <ui:Button Content="Günlük klasörü" Icon="{ui:SymbolIcon Folder24}" Margin="0,0,8,0" Click="Logs_Click" />
                 <ui:Button Content="Yenile" Icon="{ui:SymbolIcon ArrowClockwise24}" Click="Refresh_Click" />
             </StackPanel>
         </Grid>
         <ui:Card Padding="4">
-            <DataGrid x:Name="Grid_" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="All" HorizontalGridLinesBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" VerticalGridLinesBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" BorderThickness="1" BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" CanUserAddRows="False" SelectionMode="Single" RowHeight="38" MinHeight="120">
+            <DataGrid x:Name="Grid_" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="All" HorizontalGridLinesBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" VerticalGridLinesBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" BorderThickness="1" BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}" CanUserAddRows="False" SelectionMode="Single" RowHeight="38" MinHeight="120" MouseDoubleClick="Grid_DoubleClick">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Başlangıç" Binding="{Binding Started}" Width="150" />
                     <DataGridTextColumn Header="Süre" Binding="{Binding Duration}" Width="90" />

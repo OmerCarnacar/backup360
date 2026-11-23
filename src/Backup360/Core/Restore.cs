@@ -3,8 +3,10 @@ using System.Text.RegularExpressions;
 
 namespace Backup360.Core;
 
-public sealed record RestorePoint(Job Job, string Target, string Folder, string Path, bool IsArchive, string Item, string Stamp, string Extension, long Size, string Md5)
+public sealed record RestorePoint(Job Job, string Target, string Folder, string Path, bool IsArchive, string Item, string Stamp, string Extension, long Size, string Md5, string? BaseStamp = null)
 {
+    /// <summary>Fark yedeği: dayandığı tam yedekle birlikte geri yüklenir.</summary>
+    public bool IsDiff => BaseStamp != null;
     public string When => DateTime.TryParseExact(Stamp, "yyyyMMdd-HHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d.ToString("dd.MM.yyyy HH:mm") : Stamp;
     public bool IsDatabase => IsArchive && Job.Mode == "database" && Job.DbEngine != "sqlite";
 }
@@ -39,7 +41,8 @@ public static class RestoreCatalog
                 {
                     var match = Stamped.Match(path[(path.LastIndexOf('/') + 1)..]);
                     if (!match.Success || Formats.All.All(f => f.Extension != match.Groups["ext"].Value)) continue;
-                    points.Add(new RestorePoint(job, target, folder, path, true, match.Groups["item"].Value, match.Groups["stamp"].Value, match.Groups["ext"].Value, info.Size, info.Md5));
+                    var (item, baseStamp) = Differential.Split(match.Groups["item"].Value);
+                    points.Add(new RestorePoint(job, target, folder, path, true, item, match.Groups["stamp"].Value, match.Groups["ext"].Value, info.Size, info.Md5, baseStamp));
                 }
             }
             else
@@ -117,9 +120,28 @@ public static class RestoreEngine
         var work = WorkFolder.CreateWork();
         try
         {
+            var format = Formats.Get(p.Extension);
+            var password = Secrets.Unprotect(p.Job.PasswordEnc);
+            if (p.IsDiff)
+            {
+                // Önce dayandığı tam yedek, sonra fark açılır; ikisinden biri bozuksa geri yükleme yapılmaz.
+                var full = (await RestoreCatalog.ListAsync(p.Job, ct)).FirstOrDefault(x => x.Target == p.Target && x.Extension == p.Extension && !x.IsDiff
+                               && x.Stamp == p.BaseStamp && string.Equals(x.Item, p.Item, StringComparison.OrdinalIgnoreCase))
+                           ?? throw new InvalidOperationException($"Bu fark yedeğinin dayandığı {p.BaseStamp} tarihli tam yedek {p.Target} hedefinde bulunamadı.");
+                var fullLocal = await FetchAsync(full, Path.Combine(work, "tam"), log, percent, ct);
+                var diffLocal = await FetchAsync(p, Path.Combine(work, "fark"), log, percent, ct);
+                log($"Tam yedek açılıyor ({full.When})...");
+                await Archiver.ExtractAsync(format, fullLocal, destination, password, ct, percent);
+                var diffDir = Path.Combine(work, "fark-acik");
+                log($"Fark yedeği uygulanıyor ({p.When})...");
+                await Archiver.ExtractAsync(format, diffLocal, diffDir, password, ct, percent);
+                var (written, removed) = Differential.Apply(diffDir, destination);
+                log($"Fark uygulandı: {written} dosya yazıldı, {removed} silinen dosya kaldırıldı.");
+                return destination;
+            }
             var local = await FetchAsync(p, work, log, percent, ct);
             log("Dosyalar açılıyor...");
-            await Archiver.ExtractAsync(Formats.Get(p.Extension), local, destination, Secrets.Unprotect(p.Job.PasswordEnc), ct, percent);
+            await Archiver.ExtractAsync(format, local, destination, password, ct, percent);
             return destination;
         }
         finally { try { Directory.Delete(work, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { } }
