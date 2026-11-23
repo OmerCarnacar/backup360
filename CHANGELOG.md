@@ -1,3 +1,20 @@
+## 2026.11.23.1019
+
+### Eklendi
+- **Tam + fark yedeği:** Sıkıştırılmış yedeklerde iş ayarlarından açılabilir. İlk çalışmada tam yedek alınır; sonraki çalışmalarda yalnızca yeni ve değişen dosyalar ile silinenlerin listesi alınır. Belirlenen gün sayısında bir (varsayılan 7) yeniden tam yedek alınır. Dayanılacak tam yedek silinmişse fark alınmaz, tam yedek alınır. Geri yüklemede fark seçildiğinde tam yedek ve fark birlikte açılır ve dosyalar o günkü hâline getirilir
+- **Aynı günde tek yedek:** Açıksa gün içinde alınan önceki yedek, yenisi tamamlanınca silinir. "Şu kadar günden eskileri sil" ayarıyla birlikte günlük yedeklerin birikmesini önler
+- **Çalışma günlüğü:** Her çalışmanın ayrı günlük dosyası tutulur. Geçmiş sayfasında bir satıra çift tıklayınca renkli günlük penceresi açılır. Günlük işi kimin başlattığını (kullanıcı, zamanlayıcı, telafi) ve bir özet satırını içerir
+- **Yedek sürerken uyku engellenir:** Yedek ve denetim sürerken bilgisayar boşta uykuya geçmez
+- Zamanlanmış saatte başlayıp kapanış ya da uyku yüzünden yarıda kalan iş, açılışta koruma görevi tarafından sürdürülür; art arda üç kez yarıda kalırsa denenmez
+- Bilgisayar kapalıyken kaçan haftalık yedek denetimi de telafi edilir
+
+### Düzeltildi
+- **Denetimde yanlış "yedek bozuk" alarmı:** Saklama süresi dolduğu için silinmiş eski yedekler "eksik" sayılıp "yedek bozuk" alarmı veriyordu. Artık saklama süresini aşmış ve daha yeni yedeği olan dosyaların kayıtları kendiliğinden kaldırılır; bir fark yedeğinin dayandığı tam yedek hiçbir zaman bu kapsamda değildir. Gerçekten eksik olan yedek "bozuk" değil "uyarı" olarak bildirilir
+- Silinmiş ve hiçbir işin kullanmadığı hedeflerin eski kayıtları denetimde temizlenir
+- **Uykuda art arda hata:** Uyku ya da kapanış sırasında Windows'un sonlandırdığı 7-Zip her öğe için ayrı hata yazıyordu; çalışma artık tek satırla "yarıda kesildi" olarak kaydedilir, tamamlanan yedekler korunur
+- Okunamayan özel dosyalar (yuva/socket) "yedeklenemedi" uyarısı üretmez
+- Birebir gönderim ve eşitleme, kullanmadıkları geçici klasör için uyarı yazmaz
+
 ## 2026.11.16.1232
 
 ### Eklendi
