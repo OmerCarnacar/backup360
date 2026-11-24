@@ -1,3 +1,9 @@
+## 2026.11.24.0841
+
+### Düzeltildi
+- Hata iletilerinde hedefin adı iki kez yazılıyordu ("GOOGLE_OMER: GOOGLE_OMER: …"); artık bir kez yazılır
+- Günlükteki "eski yedek silindi" ve "eski klasör silindi" satırları iş klasörünü de gösterir; yol artık yedeğin gerçek konumudur
+
 ## 2026.11.23.1019
 
 ### Eklendi
