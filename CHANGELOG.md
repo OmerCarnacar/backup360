@@ -1,3 +1,8 @@
+## 2026.11.24.1409
+
+### Değişti
+- **Yarıda kalan yedek kaldığı yerden sürer:** Bilgisayar kapanınca ya da iş kesilince yarım kalan yedek artık yalnızca zamanlanmış çalışmalarda değil, elle başlatılan ve zamanlanmamış işlerde de koruma görevi tarafından yeniden başlatılır. "Yalnızca değişenler" açıksa önceki çalışmada tamamlanan öğeler atlanır, iş kaldığı yerden devam eder. Kesinti 7 günden eskiyse ya da iş üst üste üç kez kesildiyse sürdürülmez
+- Art arda kesinti sayısına artık başarılı çalışmalar da dahil edilmiyor; daha önce birkaç başarılı çalışmadan sonra kesilen iş yanlışlıkla sürdürülmeyebiliyordu
 ## 2026.11.24.0841
 
 ### Düzeltildi
