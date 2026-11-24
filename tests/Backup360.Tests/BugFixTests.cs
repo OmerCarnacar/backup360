@@ -40,41 +40,62 @@ public class BugFixTests
         Db.Save(job);
         Db.SetSetting(TaskPlanner.SinceKey(TaskPlanner.JobTask(job.Id)), "2026-11-10T09:00:00.0000000");
         var morning = new DateTime(2026, 11, 18, 8, 10, 0);
+        // Koruma görevinin başlatacağı işler: saati kaçanlar ve yarıda kalanlar.
+        List<long> Pending(DateTime now) => TaskPlanner.Overdue(now).Concat(TaskPlanner.Interrupted(now)).Select(j => j.Id).Distinct().ToList();
 
-        void Add(string started, string status, string detail)
+        void Add(string started, string status, string detail, long? id = null)
         {
-            var id = Db.StartRun("job", job.Id, job.Name);
-            if (status != "running") Db.FinishRun(id, status, detail, 0);
-            Db.Exec("UPDATE runs SET started=$s WHERE id=$i", ("$s", started), ("$i", id));
+            var run = Db.StartRun("job", id ?? job.Id, job.Name);
+            if (status != "running") Db.FinishRun(run, status, detail, 0);
+            Db.Exec("UPDATE runs SET started=$s WHERE id=$i", ("$s", started), ("$i", run));
         }
 
         // Dün 16:00'da başladı, tamamlandı: yapılacak iş yok.
         Add("2026-11-17 16:00:02", "success", "");
-        Assert.Empty(TaskPlanner.Overdue(morning));
+        Assert.Empty(Pending(morning));
         Db.Exec("DELETE FROM runs");
 
         // Dün 16:00'da başladı, bilgisayar kapanınca yarıda kaldı: sabah sürdürülür.
         Add("2026-11-17 16:00:02", "failed", Db.Interrupted);
-        Assert.Single(TaskPlanner.Overdue(morning));
+        Assert.Single(Pending(morning));
+        Assert.Single(TaskPlanner.Interrupted(morning));
         Db.Exec("DELETE FROM runs");
 
-        // Kayıt "çalışıyor" kalmış ama çalışan süreç yok: o da yarıda kalmıştır.
+        // Kayıt "çalışıyor" kalmış ama çalışan süreç yok (elektrik kesildi): o da yarıda kalmıştır.
         Add("2026-11-17 16:00:02", "running", "");
-        Assert.Single(TaskPlanner.Overdue(morning));
-        using (RunGate.TryEnter($"job-{job.Id}")) Assert.Empty(TaskPlanner.Overdue(morning));
+        Assert.Single(Pending(morning));
+        using (RunGate.TryEnter($"job-{job.Id}")) Assert.Empty(Pending(morning));
         Db.Exec("DELETE FROM runs");
 
         // Gerçek bir hatayla bitti: kendiliğinden yeniden denenmez.
         Add("2026-11-17 16:00:02", "failed", "Hedef bağlı değil");
-        Assert.Empty(TaskPlanner.Overdue(morning));
+        Assert.Empty(Pending(morning));
 
-        // Üç kez yarıda kaldıysa daha fazla denenmez.
+        // Üç kez art arda yarıda kaldıysa daha fazla denenmez.
         Db.Exec("DELETE FROM runs");
         Add("2026-11-17 16:00:02", "failed", Db.Interrupted);
         Add("2026-11-18 07:55:00", "failed", Db.Interrupted);
-        Assert.Single(TaskPlanner.Overdue(morning));
+        Assert.Single(Pending(morning));
         Add("2026-11-18 08:05:00", "failed", Db.Interrupted);
-        Assert.Empty(TaskPlanner.Overdue(morning));
+        Assert.Empty(Pending(morning));
+
+        // Zamanlanmış çalışma tamamlandıktan sonra elle başlatılan çalışma yarıda kaldı: o da sürdürülür.
+        Db.Exec("DELETE FROM runs");
+        Add("2026-11-17 16:00:02", "success", "");
+        Add("2026-11-17 18:00:00", "success", "");
+        Add("2026-11-17 20:00:00", "failed", Db.Interrupted);
+        Assert.Single(Pending(morning));
+
+        // Bir haftadan eski yarım çalışma kendiliğinden başlatılmaz.
+        Assert.Empty(TaskPlanner.Interrupted(morning.AddDays(8)));
+
+        // Zamanlaması olmayan (elle çalışan) iş de yarıda kaldıysa sürdürülür.
+        Db.Exec("DELETE FROM runs");
+        var manual = new Job { Name = "Elle", Mode = "archive", Sources = new() { s.Tree("M") }, Formats = new() { "zip" }, Targets = new() { "gdrive" } };
+        Db.Save(manual);
+        Add("2026-11-17 16:00:02", "success", "");
+        Add("2026-11-17 20:00:00", "failed", Db.Interrupted, manual.Id);
+        Assert.Equal(manual.Id, Assert.Single(Pending(morning)));
     }
 
     [Fact]

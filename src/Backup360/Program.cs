@@ -129,9 +129,15 @@ internal static class Program
         // Bilgisayar kapalıyken saati geçen yedekler beklemeden alınır; çalışan iş kendi kilidiyle korunur.
         try
         {
-            foreach (var job in TaskPlanner.Overdue(DateTime.Now))
+            var now = DateTime.Now;
+            var interrupted = TaskPlanner.Interrupted(now);
+            var resumed = interrupted.Select(j => j.Id).ToHashSet();
+            foreach (var job in interrupted.Concat(TaskPlanner.Overdue(now)).DistinctBy(j => j.Id))
             {
-                using (var log = new RunLog("Zamanlama", null)) log.Write($"Kaçırılan zamanlanmış yedek başlatılıyor: {job.Name}");
+                using (var log = new RunLog("Zamanlama", null))
+                    log.Write(resumed.Contains(job.Id)
+                        ? $"Yarıda kalan yedek kaldığı yerden sürdürülüyor: {job.Name}"
+                        : $"Kaçırılan zamanlanmış yedek başlatılıyor: {job.Name}");
                 var psi = new ProcessStartInfo(AppPaths.ExePath) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = AppPaths.BaseDir };
                 psi.ArgumentList.Add("--run-job");
                 psi.ArgumentList.Add(job.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));

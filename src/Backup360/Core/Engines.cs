@@ -407,14 +407,25 @@ public static class TaskPlanner
         if (since > due) return false;
         static DateTime? When(RunRecord r) =>
             DateTime.TryParse(r.Started, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : null;
-        var runs = Db.RecentRuns().Where(r => r.Kind == kind && r.RefId == refId && When(r) >= due.AddMinutes(-1)).ToList();
-        if (runs.Count == 0) return true;
-        // O saatte başlamış ama bilgisayar kapanınca yarıda kalmış çalışma sürdürülür. Art arda yarıda
-        // kalıyorsa sonsuza dek denenmez.
-        if (runs.Count >= 3) return false;
-        var last = runs[0];
-        if (last.Status == "failed" && last.Detail == Db.Interrupted) return true;
-        if (last.Status != "running") return false;
+        // O saatten beri başlamış bir çalışma varsa saat kaçmamıştır; yarıda kaldıysa WasInterrupted sürdürür.
+        return !Db.RecentRuns().Any(r => r.Kind == kind && r.RefId == refId && When(r) >= due.AddMinutes(-1));
+    }
+
+    /// <summary>
+    /// Son çalışması bilgisayar kapandığı, uykuya geçtiği ya da elektrik kesildiği için yarıda kalmış mı?
+    /// Zamanlamadan ve kimin başlattığından bağımsızdır: elle başlatılan iş de sürdürülür. Art arda üç kez
+    /// yarıda kalan ya da bir haftadan eski olan çalışma sonsuza dek denenmez.
+    /// </summary>
+    public static bool WasInterrupted(string kind, long refId, DateTime now)
+    {
+        var runs = Db.RecentRuns().Where(r => r.Kind == kind && r.RefId == refId).ToList();
+        if (runs.Count == 0) return false;
+        if (!DateTime.TryParse(runs[0].Started, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var started)
+            || now - started > TimeSpan.FromDays(7)) return false;
+        var streak = runs.TakeWhile(r => r.Status == "running" || (r.Status == "failed" && r.Detail == Db.Interrupted)).Count();
+        if (streak == 0 || streak >= 3) return false;
+        if (runs[0].Status != "running") return true;
+        // "Çalışıyor" görünen kayıt: kilidi kimse tutmuyorsa süreci elektrik kesilmesiyle ölmüştür.
         using var gate = RunGate.TryEnter(kind == "audit" ? "audit" : $"{kind}-{refId}");
         return gate != null;
     }
@@ -423,8 +434,12 @@ public static class TaskPlanner
     public static List<Job> Overdue(DateTime now) =>
         Db.Jobs().Where(j => Missed(JobTask(j.Id), j.Schedule, "job", j.Id, now)).ToList();
 
-    /// <summary>Saati kaçmış yedek denetimi (haftalık denetim çoğu zaman gece saatine kuruludur).</summary>
-    public static bool AuditOverdue(DateTime now) => Missed(AuditTask, AuditSchedule(), "audit", 0, now);
+    /// <summary>Yarıda kalmış, kaldığı yerden sürdürülecek yedek işleri.</summary>
+    public static List<Job> Interrupted(DateTime now) =>
+        Db.Jobs().Where(j => WasInterrupted("job", j.Id, now)).ToList();
+
+    /// <summary>Saati kaçmış ya da yarıda kalmış yedek denetimi (haftalık denetim çoğu zaman gece saatine kuruludur).</summary>
+    public static bool AuditOverdue(DateTime now) => Missed(AuditTask, AuditSchedule(), "audit", 0, now) || WasInterrupted("audit", 0, now);
     public static Task ApplyAsync(MoveRule r) => ApplyAsync(RuleTask(r.Id), $"--run-rule {r.Id}", r.Schedule);
 
     /// <summary>Uygulama klasörü taşındıysa görevleri yeni exe yoluna göre yeniden kaydeder.</summary>
