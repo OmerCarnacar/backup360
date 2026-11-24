@@ -127,8 +127,11 @@ public class DifferentialTests
         Put($"A_FARK-{newFull}_{Stamp(1)}.zip");
 
         // 5 günden eskiler silinir: eski fark gider, eski tam yedek ona dayanan yeni fark yüzünden kalır.
-        Assert.Equal(1, await Cloud.ApplyRetentionAsync("gdrive", "gunluk", "zip", 0, 5, null, default));
+        var lines = new List<string>();
+        Assert.Equal(1, await Cloud.ApplyRetentionAsync("gdrive", "gunluk", "zip", 0, 5, lines.Add, default));
         Assert.False(File.Exists(Path.Combine(root, $"A_FARK-{oldFull}_{Stamp(9)}.zip")));
+        // Günlükte silinen dosyanın iş klasörüyle birlikte tam yolu yazar.
+        Assert.Contains(lines, l => l.Contains($"gdrive:gunluk/A_FARK-{oldFull}_{Stamp(9)}.zip"));
         Assert.True(File.Exists(Path.Combine(root, $"A_{oldFull}.zip")));
 
         // Ona dayanan son fark da silinince eski tam yedek de gider.

@@ -162,8 +162,10 @@ public static class BackupAudit
             catch (IOException e)
             {
                 // Hedefe ulaşılamaması yedeğin kaybolduğu anlamına gelmez.
-                unreachable.Add($"{group.Key.Target}: {e.Message}");
-                log.Write($"  Ulaşılamadı: {group.Key.Target}: {e.Message}");
+                // Hedef hataları çoğu zaman hedefin adıyla başlar; ad iki kez yazılmaz.
+                var reason = e.Message.StartsWith(group.Key.Target + ":", StringComparison.OrdinalIgnoreCase) ? e.Message : $"{group.Key.Target}: {e.Message}";
+                unreachable.Add(reason);
+                log.Write($"  Ulaşılamadı: {reason}");
                 continue;
             }
 

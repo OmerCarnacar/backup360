@@ -630,7 +630,7 @@ public static class Cloud
             {
                 await r.DeleteAsync(Remote.Join(folder, path), false, ct);
                 Db.ForgetBackup(target, folder, path);
-                log?.Invoke($"  eski yedek silindi: {target}:{path}");
+                log?.Invoke($"  eski yedek silindi: {target}:{Remote.Join(folder, path)}");
             }
             await PruneEmptyAsync(r, folder, old.Select(p => Remote.Split(p).Parent), ct);
             return old.Count;
@@ -672,7 +672,7 @@ public static class Cloud
             foreach (var path in old)
             {
                 await r.DeleteAsync(Remote.Join(folder, path), true, ct);
-                log?.Invoke($"  eski klasör silindi: {target}:{path}");
+                log?.Invoke($"  eski klasör silindi: {target}:{Remote.Join(folder, path)}");
             }
             await PruneEmptyAsync(r, folder, old.Select(p => Remote.Split(p).Parent), ct);
             return old.Count;
